@@ -4,7 +4,7 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Any, Iterable, Mapping
+from typing import Any, Iterable, Mapping, Optional
 
 
 @dataclass(frozen=True)
@@ -16,6 +16,7 @@ class Finding:
     severity: str
     evidence: Mapping[str, Any] = field(default_factory=dict)
     recommendation: str | None = None
+    risk_score: Optional[int] = None
 
 
 @dataclass(frozen=True)
