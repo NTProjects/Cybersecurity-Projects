@@ -1,0 +1,20 @@
+{
+  "modules": [
+    {
+      "name": "network_scanner",
+      "enabled": true,
+      "config": {
+        "targets": [
+          {
+            "host": "127.0.0.1",
+            "ports": [22, 80, 443]
+          }
+        ],
+        "timeout_seconds": 1.0
+      }
+    }
+  ],
+  "reporting": {
+    "format": "text"
+  }
+}
