@@ -28,7 +28,7 @@ def main() -> int:
     config = load_config(Path(args.config))
     engine = Engine(config)
     result = engine.run()
-    renderer = ReportRenderer()
+    renderer = ReportRenderer(config)
     if args.json:
         payload: dict[str, Any] = renderer.render_json(result)
         print(json.dumps(payload, indent=2))

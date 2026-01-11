@@ -1,7 +1,7 @@
 """Risk calculation utilities for security findings."""
 from __future__ import annotations
 
-from typing import Iterable
+from typing import Any, Iterable, Mapping
 
 from soc_audit.core.interfaces import Finding
 
@@ -46,6 +46,28 @@ def calculate_risk_score(finding: Finding, severity_mapping: dict[str, int] | No
     # Map severity string (case-insensitive) to risk score
     severity_lower = finding.severity.lower()
     return mapping.get(severity_lower, 0)
+
+
+def get_severity_mapping_from_config(config: Mapping[str, Any] | None = None) -> dict[str, int] | None:
+    """
+    Extract severity-to-risk-score mapping from configuration.
+
+    If config contains risk.severity_thresholds, returns that mapping.
+    Otherwise returns None to use default mapping.
+
+    Args:
+        config: Optional configuration dictionary. If None, returns None.
+
+    Returns:
+        Dictionary mapping severity strings to risk scores, or None to use defaults.
+    """
+    if config is None:
+        return None
+    risk_config = config.get("risk", {})
+    thresholds = risk_config.get("severity_thresholds")
+    if thresholds and isinstance(thresholds, dict):
+        return {k: int(v) for k, v in thresholds.items() if isinstance(v, (int, float))}
+    return None
 
 
 def aggregate_risk_scores(findings: Iterable[Finding], severity_mapping: dict[str, int] | None = None) -> dict[str, int | float]:

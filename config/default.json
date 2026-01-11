@@ -16,5 +16,22 @@
   ],
   "reporting": {
     "format": "text"
+  },
+  "risk": {
+    "severity_thresholds": {
+      "info": 10,
+      "low": 25,
+      "medium": 50,
+      "high": 75,
+      "critical": 95
+    },
+    "port_risk_mappings": {
+      "high_risk_ports": [21, 23, 135, 139, 445, 1433, 3306, 5432, 3389, 5900, 5985, 5986],
+      "medium_risk_ports": [22, 80, 161, 443, 2049, 6379, 27017, 8080, 8443]
+    },
+    "protocol_checks": {
+      "check_ftp_anonymous": true,
+      "check_telnet": true
+    }
   }
 }

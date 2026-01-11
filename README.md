@@ -28,3 +28,35 @@ python -m soc_audit.cli --config config/default.json
 2. Extend `BaseModule` and set a unique `name`.
 3. Add configuration under `modules` in the config file.
 4. The engine automatically discovers modules at runtime.
+
+### Configuration
+
+The framework supports configurable risk thresholds, port risk mappings, and protocol checks via the `risk` section in the configuration file:
+
+```json
+{
+  "risk": {
+    "severity_thresholds": {
+      "info": 10,
+      "low": 25,
+      "medium": 50,
+      "high": 75,
+      "critical": 95
+    },
+    "port_risk_mappings": {
+      "high_risk_ports": [21, 23, 135, 139, 445, 1433, 3306, 5432, 3389, 5900, 5985, 5986],
+      "medium_risk_ports": [22, 80, 161, 443, 2049, 6379, 27017, 8080, 8443]
+    },
+    "protocol_checks": {
+      "check_ftp_anonymous": true,
+      "check_telnet": true
+    }
+  }
+}
+```
+
+- **severity_thresholds**: Maps severity levels to risk scores (0-100 scale). Used for calculating risk scores from finding severity.
+- **port_risk_mappings**: Defines which ports are categorized as high-risk or medium-risk.
+- **protocol_checks**: Enables/disables specific protocol vulnerability checks (FTP anonymous access, Telnet detection).
+
+All configuration values are optional and will fall back to sensible defaults if not specified.
