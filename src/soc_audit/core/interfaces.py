@@ -17,6 +17,8 @@ class Finding:
     evidence: Mapping[str, Any] = field(default_factory=dict)
     recommendation: str | None = None
     risk_score: Optional[int] = None
+    control_ids: list[str] | None = None
+    compliance_status: str | None = None
 
 
 @dataclass(frozen=True)
