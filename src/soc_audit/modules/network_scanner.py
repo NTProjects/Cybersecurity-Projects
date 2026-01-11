@@ -7,6 +7,7 @@ from datetime import datetime
 from typing import Iterable, Mapping
 
 from soc_audit.core.interfaces import BaseModule, Finding, ModuleContext, ModuleResult
+from soc_audit.core.risk import calculate_risk_score
 
 
 @dataclass(frozen=True)
@@ -59,6 +60,13 @@ class NetworkScanner(BaseModule):
         for port in target.ports:
             if self._is_port_open(target.host, port, timeout):
                 service = self._detect_service(target.host, port, timeout)
+                # Create temporary finding to calculate risk score
+                temp_finding = Finding(
+                    title="",
+                    description="",
+                    severity="medium",
+                )
+                risk_score = calculate_risk_score(temp_finding)
                 findings.append(
                     Finding(
                         title=f"Open port detected: {port}",
@@ -68,6 +76,7 @@ class NetworkScanner(BaseModule):
                         severity="medium",
                         evidence={"host": target.host, "port": port, "service": service},
                         recommendation="Validate if the service is authorized and hardened.",
+                        risk_score=risk_score,
                     )
                 )
         return findings
