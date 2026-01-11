@@ -63,4 +63,35 @@ class Engine:
             module_config = merge_defaults(module_entry.get("config", {}), module_cls.default_config())
             module = module_cls(module_config)
             results.append(module.run(context))
+
+            # Automatically run PortRiskAnalyzer when NetworkScanner runs
+            if module_name == "network_scanner":
+                port_risk_analyzer_cls = self.registry.get("port_risk_analyzer")
+                if port_risk_analyzer_cls:
+                    port_risk_config = self._transform_targets_for_port_risk_analyzer(module_config)
+                    port_risk_module = port_risk_analyzer_cls(port_risk_config)
+                    results.append(port_risk_module.run(context))
+
         return EngineResult(module_results=results)
+
+    @staticmethod
+    def _transform_targets_for_port_risk_analyzer(network_scanner_config: Mapping[str, Any]) -> dict[str, Any]:
+        """
+        Transform NetworkScanner target format to PortRiskAnalyzer target format.
+
+        NetworkScanner format: {"targets": [{"host": "...", "ports": [22, 80, 443]}]}
+        PortRiskAnalyzer format: {"targets": [{"host": "...", "port": 22}, {"host": "...", "port": 80}, ...]}
+        """
+        targets: list[dict[str, Any]] = []
+        network_targets = network_scanner_config.get("targets", [])
+        for target in network_targets:
+            host = target.get("host")
+            ports = target.get("ports", [])
+            for port in ports:
+                targets.append({"host": host, "port": port})
+
+        port_risk_config: dict[str, Any] = {
+            "targets": targets,
+            "timeout_seconds": network_scanner_config.get("timeout_seconds", 2.0),
+        }
+        return port_risk_config
