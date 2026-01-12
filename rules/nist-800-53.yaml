@@ -1,0 +1,21 @@
+framework: NIST
+version: "800-53"
+
+rules:
+  - id: AC-17
+    title_contains: "SSH"
+    severity: medium
+    compliance_status: Fail
+    description: "Remote access controls"
+
+  - id: SC-8
+    title_contains: "HTTP"
+    severity: medium
+    compliance_status: Fail
+    description: "Transmission confidentiality"
+
+  - id: SC-12
+    title_contains: "HTTPS"
+    severity: medium
+    compliance_status: Pass
+    description: "Cryptographic key establishment"

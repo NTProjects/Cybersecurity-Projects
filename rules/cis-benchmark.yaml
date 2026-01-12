@@ -1,0 +1,21 @@
+framework: CIS
+version: "v8"
+
+rules:
+  - id: CIS-4.1
+    title_contains: "SSH"
+    severity: medium
+    compliance_status: Fail
+    description: "Secure configuration of SSH services"
+
+  - id: CIS-9.1
+    title_contains: "HTTP"
+    severity: medium
+    compliance_status: Fail
+    description: "Limit open HTTP services"
+
+  - id: CIS-9.2
+    title_contains: "HTTPS"
+    severity: medium
+    compliance_status: Pass
+    description: "Encrypted web traffic enabled"
