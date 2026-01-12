@@ -9,6 +9,7 @@ from typing import Any, Iterable, Mapping, Sequence
 from soc_audit.core.config import merge_defaults
 from soc_audit.core.interfaces import BaseModule, Finding, ModuleContext, ModuleResult
 from soc_audit.modules.compliance_mapper import ComplianceMapper
+from soc_audit.modules.firewall_analyzer import FirewallAnalyzer
 
 
 @dataclass(frozen=True)
@@ -109,6 +110,16 @@ class Engine:
                     )
                 )
             results = updated_results
+
+        # Run FirewallAnalyzer if enabled
+        enable_firewall = self.config.get("enable_firewall_analyzer", True)
+        if enable_firewall:
+            firewall_analyzer_cls = self.registry.get("firewall_analyzer")
+            if firewall_analyzer_cls:
+                firewall_config = self.config.get("firewall", {})
+                firewall_module = firewall_analyzer_cls(firewall_config)
+                firewall_result = firewall_module.run(context)
+                results.append(firewall_result)
 
         return EngineResult(module_results=results)
 
