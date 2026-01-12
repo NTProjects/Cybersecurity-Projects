@@ -34,6 +34,15 @@ class ReportRenderer:
             lines.append(f"Total Findings: {aggregate['total_findings']}")
             lines.append(f"Highest Risk Score: {aggregate['max_risk_score']}/100")
 
+        # Calculate compliance summary
+        compliance_summary = self._calculate_compliance_summary(all_findings)
+        if compliance_summary["total_with_status"] > 0:
+            lines.append(f"\nCompliance Summary:")
+            lines.append(f"  Findings with Compliance Status: {compliance_summary['total_with_status']}")
+            lines.append(f"  Pass: {compliance_summary['pass_count']}")
+            lines.append(f"  Fail: {compliance_summary['fail_count']}")
+            lines.append(f"  Not Applicable: {compliance_summary['not_applicable_count']}")
+
         # Render module results
         for module_result in result.module_results:
             findings = list(module_result.findings)
@@ -42,6 +51,11 @@ class ReportRenderer:
             for finding in findings:
                 lines.append(f"- {finding.title} ({finding.severity})")
                 lines.append(f"  {finding.description}")
+                if finding.control_ids:
+                    control_ids_str = ", ".join(finding.control_ids)
+                    lines.append(f"  Control IDs: {control_ids_str}")
+                if finding.compliance_status:
+                    lines.append(f"  Compliance Status: {finding.compliance_status}")
                 if finding.recommendation:
                     lines.append(f"  Recommendation: {finding.recommendation}")
         return "\n".join(lines)
@@ -57,6 +71,44 @@ class ReportRenderer:
             return "HIGH"
         else:
             return "CRITICAL"
+
+    @staticmethod
+    def _calculate_compliance_summary(findings: list[Finding]) -> dict[str, int]:
+        """
+        Calculate compliance summary statistics.
+
+        Args:
+            findings: List of Finding objects to analyze.
+
+        Returns:
+            Dictionary with compliance statistics:
+            - total_with_status: Total findings with compliance_status set
+            - pass_count: Count of findings with status "Pass"
+            - fail_count: Count of findings with status "Fail"
+            - not_applicable_count: Count of findings with status "Not Applicable"
+        """
+        total_with_status = 0
+        pass_count = 0
+        fail_count = 0
+        not_applicable_count = 0
+
+        for finding in findings:
+            if finding.compliance_status:
+                total_with_status += 1
+                status_lower = finding.compliance_status.lower()
+                if status_lower == "pass":
+                    pass_count += 1
+                elif status_lower == "fail":
+                    fail_count += 1
+                elif status_lower in ("not applicable", "not_applicable", "n/a"):
+                    not_applicable_count += 1
+
+        return {
+            "total_with_status": total_with_status,
+            "pass_count": pass_count,
+            "fail_count": fail_count,
+            "not_applicable_count": not_applicable_count,
+        }
 
     def render_json(self, result: EngineResult) -> Mapping[str, Any]:
         return {
