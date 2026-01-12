@@ -4,11 +4,11 @@ from __future__ import annotations
 import importlib
 import pkgutil
 from dataclasses import dataclass
-from datetime import datetime
 from typing import Any, Iterable, Mapping, Sequence
 
 from soc_audit.core.config import merge_defaults
-from soc_audit.core.interfaces import BaseModule, ModuleContext, ModuleResult
+from soc_audit.core.interfaces import BaseModule, Finding, ModuleContext, ModuleResult
+from soc_audit.modules.compliance_mapper import ComplianceMapper
 
 
 @dataclass(frozen=True)
@@ -71,6 +71,44 @@ class Engine:
                     port_risk_config = self._transform_targets_for_port_risk_analyzer(module_config)
                     port_risk_module = port_risk_analyzer_cls(port_risk_config)
                     results.append(port_risk_module.run(context))
+
+        # Collect all findings from all module results
+        all_findings: list[Finding] = []
+        for module_result in results:
+            all_findings.extend(module_result.findings)
+
+        # Apply compliance mapping if enabled
+        if self.config.get("enable_compliance", True) and all_findings:
+            compliance_config = dict(self.config)
+            compliance_config["findings"] = all_findings
+            compliance_mapper = ComplianceMapper(compliance_config)
+            compliance_result = compliance_mapper.run(context)
+            enriched_findings = list(compliance_result.findings)
+
+            # Replace findings in module results with enriched findings
+            # Create a mapping of original findings to enriched findings for matching
+            finding_map: dict[str, Finding] = {}
+            for enriched in enriched_findings:
+                # Use title as key for matching (simple approach)
+                finding_map[enriched.title] = enriched
+
+            # Update module results with enriched findings
+            updated_results: list[ModuleResult] = []
+            for module_result in results:
+                updated_findings: list[Finding] = []
+                for finding in module_result.findings:
+                    enriched = finding_map.get(finding.title, finding)
+                    updated_findings.append(enriched)
+                updated_results.append(
+                    ModuleResult(
+                        module_name=module_result.module_name,
+                        started_at=module_result.started_at,
+                        completed_at=module_result.completed_at,
+                        findings=updated_findings,
+                        metadata=module_result.metadata,
+                    )
+                )
+            results = updated_results
 
         return EngineResult(module_results=results)
 
