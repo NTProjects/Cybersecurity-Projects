@@ -173,7 +173,7 @@ class MainWindow:
             sashcursor="sb_v_double_arrow",
         )
 
-        # Scanner config pane (top) - with enforced minimum height
+        # Scanner config pane (top) - with enforced minimum height for all content
         scanner_frame = tk.Frame(self.scanner_paned, bg="#1e1e1e")
         self.scanner_view = ScannerView(
             scanner_frame,
@@ -181,11 +181,13 @@ class MainWindow:
             on_scan_complete=self._on_scan_complete,
         )
         self.scanner_view.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
-        self.scanner_paned.add(scanner_frame, minsize=130, sticky="nsew")
+        # minsize=180 ensures Config File + Run Scan button are always visible
+        self.scanner_paned.add(scanner_frame, minsize=180, sticky="nsew")
 
         # Findings view (part of scanner pane) - with enforced minimum height
         self.findings_view = FindingsView(self.scanner_paned)
-        self.scanner_paned.add(self.findings_view, minsize=250, sticky="nsew")
+        # minsize=350 ensures filters + table headers + some rows + details are visible
+        self.scanner_paned.add(self.findings_view, minsize=350, sticky="nsew")
 
         # Standalone findings view for dedicated findings page
         self.findings_standalone = FindingsView(self.content_frame)

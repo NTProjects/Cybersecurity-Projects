@@ -53,8 +53,9 @@ class FindingsView(ttk.Frame):
         """Build the findings view UI components."""
         # Configure grid weights for resizing
         self.columnconfigure(0, weight=1)
-        self.rowconfigure(1, weight=3, minsize=100)  # Table gets more space, min height
-        self.rowconfigure(2, weight=1, minsize=80)   # Details panel, min height
+        self.rowconfigure(0, weight=0, minsize=35)   # Controls row - fixed height
+        self.rowconfigure(1, weight=3, minsize=120)  # Table gets more space, min height
+        self.rowconfigure(2, weight=1, minsize=100)  # Details panel, min height
 
         # === Top controls row ===
         controls_frame = ttk.Frame(self)
