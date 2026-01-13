@@ -46,10 +46,11 @@ class LogAnalyzer(BaseModule):
         started_at = datetime.utcnow()
         findings: list[Finding] = []
 
-        # Get config from log_analyzer section
-        log_analyzer_config = self.config.get("log_analyzer", {})
-        log_file = log_analyzer_config.get("log_file")
-        failure_threshold = log_analyzer_config.get("failure_threshold", 5)
+        # Get config - handle both flat config (from engine) and nested config (backward compatibility)
+        raw_config = self.config or {}
+        config = raw_config.get("log_analyzer", raw_config)
+        log_file = config.get("log_file")
+        failure_threshold = config.get("failure_threshold", 5)
 
         if not log_file:
             # No log file specified - return empty result
