@@ -65,6 +65,12 @@ All configuration values are optional and will fall back to sensible defaults if
 
 The SOC Audit Framework includes an optional graphical user interface. The CLI remains the default and recommended interface for automation and scripting.
 
+**Installation (for live metrics):**
+
+```bash
+pip install -r requirements-gui.txt
+```
+
 **Launching the GUI:**
 
 ```powershell
@@ -78,6 +84,8 @@ python -m soc_audit.gui
 PYTHONPATH=src python -m soc_audit.gui
 ```
 
+> **Note:** If `psutil` is not installed, live metrics will show "N/A" but the GUI will still function normally.
+
 **Supported Workflows:**
 1. **Scan Configuration** — Select a config file and run security scans
 2. **View Findings** — Browse, filter, and sort scan results
@@ -87,6 +95,10 @@ PYTHONPATH=src python -m soc_audit.gui
 
 The graphical interface provides the following capabilities:
 
+- **Live System Metrics** — Real-time CPU, memory, network, and connection monitoring
+  - Updates every second via Tkinter after() loop (no threading)
+  - Graceful fallback to "N/A" if psutil unavailable or access denied
+  - View > Refresh Metrics for manual update
 - **Config Selection** — Browse and select JSON configuration files
 - **Scan Execution** — Run the full audit engine with one click
 - **Findings Table** — View all findings in a sortable, filterable table

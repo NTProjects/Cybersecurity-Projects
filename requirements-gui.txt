@@ -1,4 +1,6 @@
 # GUI dependencies for SOC Audit Framework
 # Tkinter is bundled with Python standard library
-# This file documents GUI requirements for reference
-tk
+
+# Optional: System metrics for live dashboard
+# If psutil is not installed, dashboard metrics will show N/A
+psutil>=5.9

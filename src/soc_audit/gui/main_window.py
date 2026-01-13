@@ -37,14 +37,14 @@ class MainWindow:
     top-level window events.
 
     Views:
-    - Dashboard: SOC-style dashboard with metrics, alerts, and entities
+    - Dashboard: SOC-style dashboard with live metrics, alerts, and entities
     - Scan Configuration: Scanner configuration and execution
     - Findings: Detailed findings table and analysis
 
     Attributes:
         root: The Tkinter root window instance.
         content_frame: Frame containing the active view.
-        dashboard_view: The DashboardView instance.
+        dashboard_view: The DashboardView instance with live metrics.
         scanner_view: The ScannerView instance.
         findings_view: The FindingsView instance.
         latest_result: The most recent EngineResult, or None.
@@ -68,7 +68,8 @@ class MainWindow:
         Initialize the main application window.
 
         Creates the Tkinter root window, sets up the menu bar, main content
-        area with dashboard view, and status bar. Dashboard is shown by default.
+        area with dashboard view, and status bar. Dashboard is shown by default
+        with live metrics auto-refresh enabled.
         """
         # Create root window
         self.root = tk.Tk()
@@ -92,16 +93,19 @@ class MainWindow:
         self._create_views()
         self._create_status_bar()
 
-        # Show dashboard by default
+        # Show dashboard by default and start metrics refresh
         self._show_view("dashboard")
-        self.set_status("Dashboard loaded (wireframe)")
+        self.dashboard_view.start()
+
+        # Bind window close to cleanup
+        self.root.protocol("WM_DELETE_WINDOW", self._on_window_close)
 
     def _create_menu_bar(self) -> None:
         """
         Create the application menu bar.
 
         Sets up the File, View, and Help menus with their respective
-        menu items including view switching options.
+        menu items including view switching and metrics refresh options.
         """
         menu_bar = tk.Menu(self.root)
         self.root.config(menu=menu_bar)
@@ -115,7 +119,7 @@ class MainWindow:
             state=tk.DISABLED,
         )
         self.file_menu.add_separator()
-        self.file_menu.add_command(label="Exit", command=self._on_exit)
+        self.file_menu.add_command(label="Exit", command=self._on_window_close)
 
         # View menu with view switching
         self.view_menu = tk.Menu(menu_bar, tearoff=0)
@@ -124,6 +128,7 @@ class MainWindow:
         self.view_menu.add_command(label="Scan Configuration", command=self._on_show_scanner)
         self.view_menu.add_command(label="Findings", command=self._on_show_findings)
         self.view_menu.add_separator()
+        self.view_menu.add_command(label="Refresh Metrics", command=self._on_refresh_metrics)
         self.view_menu.add_command(label="Clear Findings", command=self._on_clear_findings)
 
         # Help menu
@@ -140,8 +145,12 @@ class MainWindow:
 
     def _create_views(self) -> None:
         """Create all view instances."""
-        # Dashboard view (default)
-        self.dashboard_view = DashboardView(self.content_frame)
+        # Dashboard view (default) with status callback for live metrics
+        self.dashboard_view = DashboardView(
+            self.content_frame,
+            on_status=self.set_status,
+            refresh_ms=1000,
+        )
 
         # Scanner view with paned layout
         self.scanner_paned = ttk.PanedWindow(self.content_frame, orient=tk.VERTICAL)
@@ -194,7 +203,6 @@ class MainWindow:
         # Show the requested view
         if view_name == "dashboard":
             self.dashboard_view.grid(row=0, column=0, sticky="nsew")
-            self.set_status("Dashboard loaded (wireframe)")
         elif view_name == "scanner":
             self.scanner_paned.grid(row=0, column=0, sticky="nsew")
             self.set_status("Scan Configuration")
@@ -215,6 +223,11 @@ class MainWindow:
     def _on_show_findings(self) -> None:
         """Handle View > Findings menu action."""
         self._show_view("findings")
+
+    def _on_refresh_metrics(self) -> None:
+        """Handle View > Refresh Metrics menu action."""
+        self.dashboard_view.refresh_now()
+        self.set_status("Metrics refreshed")
 
     def set_status(self, message: str) -> None:
         """
@@ -278,8 +291,11 @@ class MainWindow:
         self.file_menu.entryconfig("Export Report...", state=tk.DISABLED)
         self.set_status("Findings cleared")
 
-    def _on_exit(self) -> None:
-        """Handle the File > Exit menu action."""
+    def _on_window_close(self) -> None:
+        """Handle window close event with cleanup."""
+        # Stop dashboard metrics refresh
+        self.dashboard_view.stop()
+        # Destroy the window
         self.root.quit()
 
     def _on_about(self) -> None:
