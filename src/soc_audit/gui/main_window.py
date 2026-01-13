@@ -129,6 +129,7 @@ class MainWindow:
         self.view_menu.add_command(label="Findings", command=self._on_show_findings)
         self.view_menu.add_separator()
         self.view_menu.add_command(label="Refresh Metrics", command=self._on_refresh_metrics)
+        self.view_menu.add_command(label="Stop Alert Stream", command=self._on_stop_streaming)
         self.view_menu.add_command(label="Clear Findings", command=self._on_clear_findings)
 
         # Help menu
@@ -229,6 +230,14 @@ class MainWindow:
         self.dashboard_view.refresh_now()
         self.set_status("Metrics refreshed")
 
+    def _on_stop_streaming(self) -> None:
+        """Handle View > Stop Alert Stream menu action."""
+        if self.dashboard_view.is_streaming():
+            self.dashboard_view.stop_streaming()
+            self.set_status("Alert streaming stopped")
+        else:
+            self.set_status("No stream in progress")
+
     def set_status(self, message: str) -> None:
         """
         Update the status bar text.
@@ -240,7 +249,13 @@ class MainWindow:
 
     def _on_scan_complete(self, engine_result: object) -> None:
         """
-        Handle scan completion by updating findings views and enabling export.
+        Handle scan completion by streaming to dashboard and updating findings.
+
+        This method:
+        1. Switches to the dashboard view
+        2. Streams findings one-by-one for SOC-style visualization
+        3. Updates the findings views with complete results
+        4. Enables report export
 
         Args:
             engine_result: The EngineResult from the scan.
@@ -250,11 +265,17 @@ class MainWindow:
 
         if isinstance(engine_result, EngineResult):
             self.latest_result = engine_result
-            # Update both findings views
+            
+            # Update findings views with complete results
             self.findings_view.set_results(engine_result)
             self.findings_standalone.set_results(engine_result)
+            
             # Enable export menu item
             self.file_menu.entryconfig("Export Report...", state=tk.NORMAL)
+            
+            # Switch to dashboard and stream findings for SOC-style presentation
+            self._show_view("dashboard")
+            self.dashboard_view.stream_engine_result(engine_result, delay_ms=350)
 
     def _on_export_report(self) -> None:
         """Handle the File > Export Report menu action."""
@@ -285,6 +306,10 @@ class MainWindow:
 
     def _on_clear_findings(self) -> None:
         """Handle the View > Clear Findings menu action."""
+        # Stop any ongoing streaming
+        self.dashboard_view.stop_streaming()
+        # Clear all views
+        self.dashboard_view.clear_findings()
         self.findings_view.clear()
         self.findings_standalone.clear()
         self.latest_result = None

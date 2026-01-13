@@ -1,26 +1,36 @@
 """Top entities panel for the SOC dashboard.
 
 This module provides a panel displaying top entities (IPs, users, ports)
-in a Splunk ES-style tabbed format.
+in a Splunk ES-style tabbed format with live aggregation support.
 """
 from __future__ import annotations
 
+import re
 import tkinter as tk
+from collections import defaultdict
 from tkinter import ttk
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from soc_audit.core.interfaces import Finding
 
 
 class TopEntitiesPanel(ttk.LabelFrame):
     """
-    Panel displaying top entities with tabbed navigation.
+    Panel displaying top entities with tabbed navigation and live aggregation.
 
     Shows tabs for Top IPs, Top Users, and Top Ports, each with
-    a table showing entity names and counts.
+    a table showing entity names and counts. Supports incremental
+    updates as findings stream in.
 
     Attributes:
         notebook: Notebook widget containing entity tabs.
         ip_tree: Treeview for top IPs.
         user_tree: Treeview for top users.
         port_tree: Treeview for top ports.
+        ip_counts: Counter for IP occurrences.
+        user_counts: Counter for user occurrences.
+        port_counts: Counter for port occurrences.
     """
 
     def __init__(self, parent: tk.Widget) -> None:
@@ -31,8 +41,13 @@ class TopEntitiesPanel(ttk.LabelFrame):
             parent: Parent widget.
         """
         super().__init__(parent, text="Top Entities", padding=10)
+        
+        # Aggregation counters
+        self.ip_counts: dict[str, int] = defaultdict(int)
+        self.user_counts: dict[str, int] = defaultdict(int)
+        self.port_counts: dict[str, int] = defaultdict(int)
+        
         self._build_ui()
-        self.set_placeholder_data()
 
     def _build_ui(self) -> None:
         """Build the panel UI components."""
@@ -90,6 +105,124 @@ class TopEntitiesPanel(ttk.LabelFrame):
 
         return tree
 
+    def update_from_finding(self, finding: Finding) -> None:
+        """
+        Update entity counts from a finding's evidence.
+
+        Extracts IPs, users, and ports from the finding's evidence
+        and updates the aggregation counters.
+
+        Args:
+            finding: The Finding object to process.
+        """
+        evidence = finding.evidence or {}
+
+        # Extract IPs
+        self._extract_ips(evidence)
+
+        # Extract users
+        self._extract_users(evidence)
+
+        # Extract ports
+        self._extract_ports(evidence, finding.title)
+
+        # Refresh displays
+        self._refresh_all_trees()
+
+    def _extract_ips(self, evidence: dict[str, Any]) -> None:
+        """Extract IP addresses from evidence."""
+        # Common evidence field names for IPs
+        ip_fields = ["source_ip", "ip", "src_ip", "dest_ip", "remote_ip", "host"]
+        ip_pattern = re.compile(r"\b(?:\d{1,3}\.){3}\d{1,3}\b")
+
+        for field in ip_fields:
+            if field in evidence:
+                value = str(evidence[field])
+                # Extract IP from the value
+                matches = ip_pattern.findall(value)
+                for ip in matches:
+                    self.ip_counts[ip] += 1
+
+        # Also check the entire evidence for embedded IPs
+        evidence_str = str(evidence)
+        for ip in ip_pattern.findall(evidence_str):
+            if ip not in ["0.0.0.0", "255.255.255.255"]:
+                # Only count if not already counted from specific fields
+                pass  # Avoid double counting
+
+    def _extract_users(self, evidence: dict[str, Any]) -> None:
+        """Extract usernames from evidence."""
+        user_fields = ["username", "user", "account", "login"]
+
+        for field in user_fields:
+            if field in evidence:
+                user = str(evidence[field])
+                if user and user.lower() not in ["none", "unknown", ""]:
+                    self.user_counts[user] += 1
+
+    def _extract_ports(self, evidence: dict[str, Any], title: str) -> None:
+        """Extract port numbers from evidence and title."""
+        port_fields = ["port", "dest_port", "src_port", "service_port"]
+
+        for field in port_fields:
+            if field in evidence:
+                port = evidence[field]
+                if isinstance(port, int) or (isinstance(port, str) and port.isdigit()):
+                    port_str = self._format_port(int(port))
+                    self.port_counts[port_str] += 1
+
+        # Also try to extract port from title like "Port 22 (SSH)"
+        port_match = re.search(r"port\s*(\d+)", title.lower())
+        if port_match:
+            port_num = int(port_match.group(1))
+            port_str = self._format_port(port_num)
+            self.port_counts[port_str] += 1
+
+    def _format_port(self, port: int) -> str:
+        """Format port number with service name if known."""
+        well_known = {
+            21: "FTP",
+            22: "SSH",
+            23: "Telnet",
+            25: "SMTP",
+            53: "DNS",
+            80: "HTTP",
+            110: "POP3",
+            143: "IMAP",
+            443: "HTTPS",
+            445: "SMB",
+            3306: "MySQL",
+            3389: "RDP",
+            5432: "PostgreSQL",
+            5900: "VNC",
+            6379: "Redis",
+            8080: "HTTP-Alt",
+            8443: "HTTPS-Alt",
+            27017: "MongoDB",
+        }
+        if port in well_known:
+            return f"{port} ({well_known[port]})"
+        return str(port)
+
+    def _refresh_all_trees(self) -> None:
+        """Refresh all entity trees with current counts."""
+        self._refresh_tree(self.ip_tree, self.ip_counts)
+        self._refresh_tree(self.user_tree, self.user_counts)
+        self._refresh_tree(self.port_tree, self.port_counts)
+
+    def _refresh_tree(self, tree: ttk.Treeview, counts: dict[str, int]) -> None:
+        """Refresh a single tree with sorted counts."""
+        # Clear current items
+        for item in tree.get_children():
+            tree.delete(item)
+
+        # Sort by count descending
+        sorted_items = sorted(counts.items(), key=lambda x: x[1], reverse=True)
+
+        # Insert top items (limit to 20)
+        for entity, count in sorted_items[:20]:
+            tree.insert("", tk.END, values=(entity, count))
+
     def set_placeholder_data(self) -> None:
         """Set placeholder entity data for demonstration."""
         self.clear()
@@ -125,7 +258,11 @@ class TopEntitiesPanel(ttk.LabelFrame):
             self.port_tree.insert("", tk.END, values=(entity, count))
 
     def clear(self) -> None:
-        """Clear all entity data from the tables."""
+        """Clear all entity data from the tables and reset counters."""
         for tree in [self.ip_tree, self.user_tree, self.port_tree]:
             for item in tree.get_children():
                 tree.delete(item)
+        
+        self.ip_counts.clear()
+        self.user_counts.clear()
+        self.port_counts.clear()
