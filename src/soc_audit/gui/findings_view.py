@@ -154,13 +154,18 @@ class FindingsView(ttk.Frame):
         details_frame.columnconfigure(0, weight=1)
         details_frame.rowconfigure(0, weight=1)
 
-        # Details text widget with scrollbar
+        # Details text widget with scrollbar (dark theme)
         self.details_text = tk.Text(
             details_frame,
             wrap=tk.WORD,
             state=tk.DISABLED,
             height=8,
-            font=("TkFixedFont", 9),
+            font=("Consolas", 9),
+            bg="#1e1e1e",
+            fg="#d4d4d4",
+            insertbackground="#d4d4d4",
+            selectbackground="#3e3e42",
+            selectforeground="#ffffff",
         )
         self.details_text.grid(row=0, column=0, sticky="nsew", padx=5, pady=5)
 

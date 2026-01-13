@@ -38,6 +38,12 @@ class ScannerView(tk.Frame):
         run_button: Button to execute the scan.
     """
 
+    # Dark theme colors
+    BG_COLOR = "#1e1e1e"
+    BG_LIGHTER = "#252526"
+    FG_COLOR = "#d4d4d4"
+    ACCENT_COLOR = "#3e3e42"
+
     def __init__(
         self,
         parent: tk.Widget,
@@ -53,7 +59,7 @@ class ScannerView(tk.Frame):
             on_scan_complete: Optional callback invoked with EngineResult after
                 a successful scan. Used to pass results to FindingsView.
         """
-        super().__init__(parent)
+        super().__init__(parent, bg=self.BG_COLOR)
         self.set_status = set_status_callback
         self.on_scan_complete = on_scan_complete
         self.config_path: Path | None = None
@@ -69,39 +75,67 @@ class ScannerView(tk.Frame):
             self,
             text="Scan Configuration",
             font=("TkDefaultFont", 12, "bold"),
+            bg=self.BG_COLOR,
+            fg=self.FG_COLOR,
         )
         title_label.grid(row=0, column=0, columnspan=3, pady=(10, 15), sticky="w")
 
         # Config path label
-        config_label = tk.Label(self, text="Config File:")
+        config_label = tk.Label(
+            self,
+            text="Config File:",
+            bg=self.BG_COLOR,
+            fg=self.FG_COLOR,
+        )
         config_label.grid(row=1, column=0, padx=(10, 5), pady=5, sticky="w")
 
-        # Config path entry (read-only)
+        # Config path entry (read-only, dark theme)
         self.config_var = tk.StringVar(value="No configuration file selected")
         self.config_entry = tk.Entry(
             self,
             textvariable=self.config_var,
             width=60,
             state="readonly",
+            bg=self.BG_LIGHTER,
+            fg=self.FG_COLOR,
+            readonlybackground=self.BG_LIGHTER,
+            insertbackground=self.FG_COLOR,
+            relief=tk.FLAT,
+            highlightthickness=1,
+            highlightbackground=self.ACCENT_COLOR,
+            highlightcolor=self.ACCENT_COLOR,
         )
         self.config_entry.grid(row=1, column=1, padx=5, pady=5, sticky="ew")
 
-        # Browse button
+        # Browse button (dark theme)
         browse_button = tk.Button(
             self,
             text="Browse...",
             command=self._on_browse,
             width=12,
+            bg=self.ACCENT_COLOR,
+            fg=self.FG_COLOR,
+            activebackground="#4a90d9",
+            activeforeground="#ffffff",
+            relief=tk.FLAT,
+            cursor="hand2",
         )
         browse_button.grid(row=1, column=2, padx=(5, 10), pady=5)
 
-        # Run scan button (initially disabled)
+        # Run scan button (initially disabled, dark theme)
         self.run_button = tk.Button(
             self,
             text="Run Scan",
             command=self._on_run_scan,
             width=15,
             state=tk.DISABLED,
+            bg=self.ACCENT_COLOR,
+            fg=self.FG_COLOR,
+            activebackground="#4a90d9",
+            activeforeground="#ffffff",
+            disabledforeground="#666666",
+            relief=tk.FLAT,
+            cursor="hand2",
         )
         self.run_button.grid(row=2, column=0, columnspan=3, pady=(20, 10))
 

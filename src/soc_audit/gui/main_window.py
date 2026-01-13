@@ -22,6 +22,7 @@ from soc_audit.gui.dashboard_view import DashboardView
 from soc_audit.gui.findings_view import FindingsView
 from soc_audit.gui.report_export import ReportExportView
 from soc_audit.gui.scanner_view import ScannerView
+from soc_audit.gui.theme import apply_dark_theme
 
 if TYPE_CHECKING:
     from soc_audit.core.engine import EngineResult
@@ -79,6 +80,10 @@ class MainWindow:
         self.root.geometry(f"{self.DEFAULT_WIDTH}x{self.DEFAULT_HEIGHT}")
         self.root.minsize(self.MIN_WIDTH, self.MIN_HEIGHT)
 
+        # Apply dark theme for eye-friendly appearance
+        # To revert: comment out or remove this line
+        apply_dark_theme(self.root)
+
         # Configure root grid
         self.root.columnconfigure(0, weight=1)
         self.root.rowconfigure(0, weight=1)
@@ -107,11 +112,16 @@ class MainWindow:
         Sets up the File, View, and Help menus with their respective
         menu items including view switching and metrics refresh options.
         """
-        menu_bar = tk.Menu(self.root)
+        # Dark menu colors
+        menu_bg = "#252526"
+        menu_fg = "#d4d4d4"
+        menu_active_bg = "#3e3e42"
+        
+        menu_bar = tk.Menu(self.root, bg=menu_bg, fg=menu_fg, activebackground=menu_active_bg, activeforeground="#ffffff")
         self.root.config(menu=menu_bar)
 
         # File menu
-        self.file_menu = tk.Menu(menu_bar, tearoff=0)
+        self.file_menu = tk.Menu(menu_bar, tearoff=0, bg=menu_bg, fg=menu_fg, activebackground=menu_active_bg, activeforeground="#ffffff")
         menu_bar.add_cascade(label="File", menu=self.file_menu)
         self.file_menu.add_command(
             label="Export Report...",
@@ -122,7 +132,7 @@ class MainWindow:
         self.file_menu.add_command(label="Exit", command=self._on_window_close)
 
         # View menu with view switching
-        self.view_menu = tk.Menu(menu_bar, tearoff=0)
+        self.view_menu = tk.Menu(menu_bar, tearoff=0, bg=menu_bg, fg=menu_fg, activebackground=menu_active_bg, activeforeground="#ffffff")
         menu_bar.add_cascade(label="View", menu=self.view_menu)
         self.view_menu.add_command(label="Dashboard", command=self._on_show_dashboard)
         self.view_menu.add_command(label="Scan Configuration", command=self._on_show_scanner)
@@ -133,7 +143,7 @@ class MainWindow:
         self.view_menu.add_command(label="Clear Findings", command=self._on_clear_findings)
 
         # Help menu
-        help_menu = tk.Menu(menu_bar, tearoff=0)
+        help_menu = tk.Menu(menu_bar, tearoff=0, bg=menu_bg, fg=menu_fg, activebackground=menu_active_bg, activeforeground="#ffffff")
         menu_bar.add_cascade(label="Help", menu=help_menu)
         help_menu.add_command(label="About", command=self._on_about)
 
@@ -186,6 +196,8 @@ class MainWindow:
             anchor=tk.W,
             padx=10,
             pady=5,
+            bg="#1e1e1e",  # Dark background
+            fg="#d4d4d4",  # Light text
         )
         self.status_bar.grid(row=1, column=0, sticky="ew")
 
