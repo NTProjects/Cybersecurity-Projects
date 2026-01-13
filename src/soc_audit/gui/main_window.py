@@ -16,9 +16,14 @@ from __future__ import annotations
 
 import tkinter as tk
 from tkinter import messagebox, ttk
+from typing import TYPE_CHECKING
 
 from soc_audit.gui.findings_view import FindingsView
+from soc_audit.gui.report_export import ReportExportView
 from soc_audit.gui.scanner_view import ScannerView
+
+if TYPE_CHECKING:
+    from soc_audit.core.engine import EngineResult
 
 
 class MainWindow:
@@ -39,6 +44,7 @@ class MainWindow:
         paned: The PanedWindow containing scanner and findings views.
         scanner_view: The ScannerView instance.
         findings_view: The FindingsView instance.
+        latest_result: The most recent EngineResult, or None.
         status_var: StringVar for the status bar text.
         status_bar: Label widget displaying status messages.
 
@@ -73,6 +79,9 @@ class MainWindow:
         self.root.columnconfigure(0, weight=1)
         self.root.rowconfigure(0, weight=1)
 
+        # Initialize state
+        self.latest_result: EngineResult | None = None
+
         # Build UI components
         self._create_menu_bar()
         self._create_main_content()
@@ -89,9 +98,15 @@ class MainWindow:
         self.root.config(menu=menu_bar)
 
         # File menu
-        file_menu = tk.Menu(menu_bar, tearoff=0)
-        menu_bar.add_cascade(label="File", menu=file_menu)
-        file_menu.add_command(label="Exit", command=self._on_exit)
+        self.file_menu = tk.Menu(menu_bar, tearoff=0)
+        menu_bar.add_cascade(label="File", menu=self.file_menu)
+        self.file_menu.add_command(
+            label="Export Report...",
+            command=self._on_export_report,
+            state=tk.DISABLED,
+        )
+        self.file_menu.add_separator()
+        self.file_menu.add_command(label="Exit", command=self._on_exit)
 
         # View menu
         self.view_menu = tk.Menu(menu_bar, tearoff=0)
@@ -159,7 +174,7 @@ class MainWindow:
 
     def _on_scan_complete(self, engine_result: object) -> None:
         """
-        Handle scan completion by updating findings view.
+        Handle scan completion by updating findings view and enabling export.
 
         Args:
             engine_result: The EngineResult from the scan.
@@ -168,11 +183,43 @@ class MainWindow:
         from soc_audit.core.engine import EngineResult
 
         if isinstance(engine_result, EngineResult):
+            self.latest_result = engine_result
             self.findings_view.set_results(engine_result)
+            # Enable export menu item
+            self.file_menu.entryconfig("Export Report...", state=tk.NORMAL)
+
+    def _on_export_report(self) -> None:
+        """Handle the File > Export Report menu action."""
+        if self.latest_result is None:
+            messagebox.showwarning(
+                "No Results",
+                "No scan results available to export.\nRun a scan first.",
+            )
+            return
+
+        # Create modal export dialog
+        export_dialog = tk.Toplevel(self.root)
+        export_dialog.title("Export Report")
+        export_dialog.geometry("300x150")
+        export_dialog.resizable(False, False)
+        export_dialog.transient(self.root)
+        export_dialog.grab_set()
+
+        # Center the dialog on the main window
+        export_dialog.update_idletasks()
+        x = self.root.winfo_x() + (self.root.winfo_width() - 300) // 2
+        y = self.root.winfo_y() + (self.root.winfo_height() - 150) // 2
+        export_dialog.geometry(f"+{x}+{y}")
+
+        # Add export view
+        export_view = ReportExportView(export_dialog, self.latest_result)
+        export_view.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
 
     def _on_clear_findings(self) -> None:
         """Handle the View > Clear Findings menu action."""
         self.findings_view.clear()
+        self.latest_result = None
+        self.file_menu.entryconfig("Export Report...", state=tk.DISABLED)
         self.set_status("Findings cleared")
 
     def _on_exit(self) -> None:
