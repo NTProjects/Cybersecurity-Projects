@@ -10,6 +10,7 @@ from soc_audit.core.config import merge_defaults
 from soc_audit.core.interfaces import BaseModule, Finding, ModuleContext, ModuleResult
 from soc_audit.modules.compliance_mapper import ComplianceMapper
 from soc_audit.modules.firewall_analyzer import FirewallAnalyzer
+from soc_audit.modules.log_analyzer import LogAnalyzer
 
 
 @dataclass(frozen=True)
@@ -120,6 +121,16 @@ class Engine:
                 firewall_module = firewall_analyzer_cls(firewall_config)
                 firewall_result = firewall_module.run(context)
                 results.append(firewall_result)
+
+        # Run LogAnalyzer if enabled
+        enable_log_analyzer = self.config.get("enable_log_analyzer", True)
+        if enable_log_analyzer:
+            log_analyzer_cls = self.registry.get("log_analyzer")
+            if log_analyzer_cls:
+                log_analyzer_config = self.config.get("log_analyzer", {})
+                log_analyzer_module = log_analyzer_cls(log_analyzer_config)
+                log_analyzer_result = log_analyzer_module.run(context)
+                results.append(log_analyzer_result)
 
         return EngineResult(module_results=results)
 
