@@ -20,6 +20,8 @@ from __future__ import annotations
 import tkinter as tk
 from tkinter import messagebox
 
+from soc_audit.gui.scanner_view import ScannerView
+
 
 class MainWindow:
     """
@@ -107,15 +109,19 @@ class MainWindow:
         Create the main content frame.
 
         This frame serves as the container for scanner, findings, and
-        other views that will be added in future commits. Currently
-        empty but configured for flexible layout.
+        other views. The scanner view is instantiated and placed in
+        the frame for scan configuration and execution.
         """
         self.main_frame = tk.Frame(self.root)
         self.main_frame.grid(row=0, column=0, sticky="nsew", padx=5, pady=5)
 
-        # Configure main frame for future child widgets
+        # Configure main frame for child widgets
         self.main_frame.columnconfigure(0, weight=1)
         self.main_frame.rowconfigure(0, weight=1)
+
+        # Add scanner view
+        self.scanner_view = ScannerView(self.main_frame, self.set_status)
+        self.scanner_view.grid(row=0, column=0, sticky="new", padx=10, pady=10)
 
     def _create_status_bar(self) -> None:
         """
