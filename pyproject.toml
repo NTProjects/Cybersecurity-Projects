@@ -1,0 +1,29 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "soc-audit"
+version = "0.1.0"
+description = "Modular SOC auditing framework with CLI and optional GUI"
+readme = "README.md"
+requires-python = ">=3.10"
+authors = [
+  { name = "SOC Audit Framework" }
+]
+
+dependencies = [
+  "pyyaml"
+]
+
+[project.optional-dependencies]
+gui = []
+
+[project.scripts]
+soc-audit = "soc_audit.cli:main"
+
+[project.entry-points."soc_audit.gui"]
+gui = "soc_audit.gui.__main__:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]

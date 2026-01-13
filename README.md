@@ -60,3 +60,26 @@ The framework supports configurable risk thresholds, port risk mappings, and pro
 - **protocol_checks**: Enables/disables specific protocol vulnerability checks (FTP anonymous access, Telnet detection).
 
 All configuration values are optional and will fall back to sensible defaults if not specified.
+
+### GUI Usage (Optional)
+
+The SOC Audit Framework includes an optional graphical user interface. The CLI remains the default and recommended interface for automation and scripting.
+
+To launch the GUI:
+
+```powershell
+# Windows PowerShell
+$env:PYTHONPATH="src"
+python -m soc_audit.gui
+```
+
+```bash
+# Linux/macOS
+PYTHONPATH=src python -m soc_audit.gui
+```
+
+The GUI provides:
+- Visual scan configuration and execution
+- Interactive findings table with filtering and sorting
+- Details panel for examining individual findings
+- Report export to JSON and text formats

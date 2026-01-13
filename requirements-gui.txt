@@ -1,0 +1,4 @@
+# GUI dependencies for SOC Audit Framework
+# Tkinter is bundled with Python standard library
+# This file documents GUI requirements for reference
+tk
