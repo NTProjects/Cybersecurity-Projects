@@ -65,7 +65,7 @@ All configuration values are optional and will fall back to sensible defaults if
 
 The SOC Audit Framework includes an optional graphical user interface. The CLI remains the default and recommended interface for automation and scripting.
 
-To launch the GUI:
+**Launching the GUI:**
 
 ```powershell
 # Windows PowerShell
@@ -78,8 +78,43 @@ python -m soc_audit.gui
 PYTHONPATH=src python -m soc_audit.gui
 ```
 
-The GUI provides:
-- Visual scan configuration and execution
-- Interactive findings table with filtering and sorting
-- Details panel for examining individual findings
-- Report export to JSON and text formats
+**Supported Workflows:**
+1. **Scan Configuration** — Select a config file and run security scans
+2. **View Findings** — Browse, filter, and sort scan results
+3. **Export Reports** — Save findings as JSON or plain text files
+
+### GUI Features
+
+The graphical interface provides the following capabilities:
+
+- **Config Selection** — Browse and select JSON configuration files
+- **Scan Execution** — Run the full audit engine with one click
+- **Findings Table** — View all findings in a sortable, filterable table
+  - Filter by module name
+  - Filter by severity level
+  - Search across title, description, and evidence
+  - Click column headers to sort
+- **Details Panel** — View complete finding information including:
+  - Title, description, and severity
+  - Risk score (when available)
+  - Evidence data (pretty-printed JSON)
+  - Compliance status and control IDs (when mapped)
+  - Recommendations
+- **Report Export** — Export scan results via File > Export Report
+  - JSON format (machine-readable)
+  - Text format (human-readable, matches CLI output)
+- **Status Bar** — Real-time feedback on scan progress and actions
+
+### CLI vs GUI
+
+The SOC Audit Framework follows a **CLI-first architecture**:
+
+| Aspect | CLI | GUI |
+|--------|-----|-----|
+| **Primary Use** | Automation, scripting, CI/CD | Interactive analysis |
+| **Entry Point** | `python -m soc_audit.cli` | `python -m soc_audit.gui` |
+| **Output** | Console text or JSON | Visual table + export |
+| **Engine** | Same core engine | Same core engine |
+| **Modules** | Same detection modules | Same detection modules |
+
+Both interfaces use the identical `Engine`, `ModuleContext`, and `ReportRenderer` components. The GUI is a thin wrapper that provides visual interaction without duplicating business logic.
