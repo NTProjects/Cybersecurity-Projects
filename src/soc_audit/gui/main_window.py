@@ -4,22 +4,20 @@ This module provides the primary application window for the SOC Audit Framework'
 graphical user interface. It serves as the foundation for all GUI components,
 establishing the layout, menu structure, and status bar.
 
-The MainWindow class creates a Tkinter-based window that will host scanner
-configuration, findings display, and report export views in future commits.
-This module focuses solely on GUI scaffold - no business logic, engine execution,
-or data processing occurs here.
+The MainWindow class creates a Tkinter-based window that hosts scanner
+configuration and findings display views in a split-pane layout.
 
 Architecture:
     The GUI follows a thin-wrapper design where all security scanning and
     analysis logic remains in the core engine. This window provides the
-    visual shell that will eventually interact with the engine through
-    the cli_bridge module.
+    visual shell that interacts with the engine through the cli_bridge module.
 """
 from __future__ import annotations
 
 import tkinter as tk
-from tkinter import messagebox
+from tkinter import messagebox, ttk
 
+from soc_audit.gui.findings_view import FindingsView
 from soc_audit.gui.scanner_view import ScannerView
 
 
@@ -28,17 +26,19 @@ class MainWindow:
     Main application window for the SOC Audit Framework GUI.
 
     This class creates and manages the primary application window, including
-    the menu bar, main content area, and status bar. It serves as the container
-    for all GUI views and handles top-level window events.
+    the menu bar, main content area (with scanner and findings views), and
+    status bar. It serves as the container for all GUI views and handles
+    top-level window events.
 
-    The window is designed to host future components:
-    - Scanner view for configuring and running scans
-    - Findings view for displaying security findings
-    - Report export functionality
+    The window layout uses a vertical PanedWindow:
+    - Top pane: Scanner view for configuring and running scans
+    - Bottom pane: Findings view for displaying security findings
 
     Attributes:
         root: The Tkinter root window instance.
-        main_frame: The central frame for hosting content views.
+        paned: The PanedWindow containing scanner and findings views.
+        scanner_view: The ScannerView instance.
+        findings_view: The FindingsView instance.
         status_var: StringVar for the status bar text.
         status_bar: Label widget displaying status messages.
 
@@ -58,8 +58,8 @@ class MainWindow:
         Initialize the main application window.
 
         Creates the Tkinter root window, sets up the menu bar, main content
-        frame, and status bar. The window is configured with default and
-        minimum sizes.
+        panes (scanner and findings views), and status bar. The window is
+        configured with default and minimum sizes.
         """
         # Create root window
         self.root = tk.Tk()
@@ -75,7 +75,7 @@ class MainWindow:
 
         # Build UI components
         self._create_menu_bar()
-        self._create_main_frame()
+        self._create_main_content()
         self._create_status_bar()
 
     def _create_menu_bar(self) -> None:
@@ -83,8 +83,7 @@ class MainWindow:
         Create the application menu bar.
 
         Sets up the File, View, and Help menus with their respective
-        menu items. Currently implements Exit and About functionality,
-        with placeholder items for future features.
+        menu items. Implements Exit, Clear Findings, and About functionality.
         """
         menu_bar = tk.Menu(self.root)
         self.root.config(menu=menu_bar)
@@ -95,33 +94,40 @@ class MainWindow:
         file_menu.add_command(label="Exit", command=self._on_exit)
 
         # View menu
-        view_menu = tk.Menu(menu_bar, tearoff=0)
-        menu_bar.add_cascade(label="View", menu=view_menu)
-        view_menu.add_command(label="Refresh", state=tk.DISABLED)
+        self.view_menu = tk.Menu(menu_bar, tearoff=0)
+        menu_bar.add_cascade(label="View", menu=self.view_menu)
+        self.view_menu.add_command(label="Clear Findings", command=self._on_clear_findings)
 
         # Help menu
         help_menu = tk.Menu(menu_bar, tearoff=0)
         menu_bar.add_cascade(label="Help", menu=help_menu)
         help_menu.add_command(label="About", command=self._on_about)
 
-    def _create_main_frame(self) -> None:
+    def _create_main_content(self) -> None:
         """
-        Create the main content frame.
+        Create the main content area with paned layout.
 
-        This frame serves as the container for scanner, findings, and
-        other views. The scanner view is instantiated and placed in
-        the frame for scan configuration and execution.
+        Uses a vertical PanedWindow to split the window between:
+        - Top: Scanner view for configuration and scan execution
+        - Bottom: Findings view for displaying results
         """
-        self.main_frame = tk.Frame(self.root)
-        self.main_frame.grid(row=0, column=0, sticky="nsew", padx=5, pady=5)
+        # Create vertical paned window
+        self.paned = ttk.PanedWindow(self.root, orient=tk.VERTICAL)
+        self.paned.grid(row=0, column=0, sticky="nsew", padx=5, pady=5)
 
-        # Configure main frame for child widgets
-        self.main_frame.columnconfigure(0, weight=1)
-        self.main_frame.rowconfigure(0, weight=1)
+        # Create scanner view (top pane)
+        scanner_frame = ttk.Frame(self.paned)
+        self.scanner_view = ScannerView(
+            scanner_frame,
+            self.set_status,
+            on_scan_complete=self._on_scan_complete,
+        )
+        self.scanner_view.pack(fill=tk.X, padx=5, pady=5)
+        self.paned.add(scanner_frame, weight=0)
 
-        # Add scanner view
-        self.scanner_view = ScannerView(self.main_frame, self.set_status)
-        self.scanner_view.grid(row=0, column=0, sticky="new", padx=10, pady=10)
+        # Create findings view (bottom pane)
+        self.findings_view = FindingsView(self.paned)
+        self.paned.add(self.findings_view, weight=1)
 
     def _create_status_bar(self) -> None:
         """
@@ -150,6 +156,24 @@ class MainWindow:
             message: The status message to display.
         """
         self.status_var.set(message)
+
+    def _on_scan_complete(self, engine_result: object) -> None:
+        """
+        Handle scan completion by updating findings view.
+
+        Args:
+            engine_result: The EngineResult from the scan.
+        """
+        # Import here to avoid circular import at module level
+        from soc_audit.core.engine import EngineResult
+
+        if isinstance(engine_result, EngineResult):
+            self.findings_view.set_results(engine_result)
+
+    def _on_clear_findings(self) -> None:
+        """Handle the View > Clear Findings menu action."""
+        self.findings_view.clear()
+        self.set_status("Findings cleared")
 
     def _on_exit(self) -> None:
         """Handle the File > Exit menu action."""

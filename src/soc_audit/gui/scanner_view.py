@@ -13,7 +13,7 @@ from __future__ import annotations
 import tkinter as tk
 from pathlib import Path
 from tkinter import filedialog, messagebox
-from typing import Callable
+from typing import Any, Callable
 
 from soc_audit.gui.cli_bridge import GuiCliBridge
 
@@ -27,11 +27,12 @@ class ScannerView(tk.Frame):
     - Execute a security scan using the selected configuration
     - View basic status updates during execution
 
-    The view does not display scan results - that responsibility
-    belongs to a separate FindingsView component.
+    Scan results are passed to the FindingsView via the on_scan_complete
+    callback provided during initialization.
 
     Attributes:
         set_status: Callback function to update the main window status bar.
+        on_scan_complete: Optional callback invoked with EngineResult on success.
         config_path: Path to the selected configuration file, or None.
         config_entry: Entry widget displaying the selected config path.
         run_button: Button to execute the scan.
@@ -41,6 +42,7 @@ class ScannerView(tk.Frame):
         self,
         parent: tk.Widget,
         set_status_callback: Callable[[str], None],
+        on_scan_complete: Callable[[Any], None] | None = None,
     ) -> None:
         """
         Initialize the scanner view.
@@ -48,9 +50,12 @@ class ScannerView(tk.Frame):
         Args:
             parent: Parent widget (typically MainWindow's main_frame).
             set_status_callback: Function to update the main window status bar.
+            on_scan_complete: Optional callback invoked with EngineResult after
+                a successful scan. Used to pass results to FindingsView.
         """
         super().__init__(parent)
         self.set_status = set_status_callback
+        self.on_scan_complete = on_scan_complete
         self.config_path: Path | None = None
         self._build_ui()
 
@@ -152,6 +157,10 @@ class ScannerView(tk.Frame):
                 len(list(mr.findings)) for mr in result.module_results
             )
             modules_run = len(result.module_results)
+
+            # Pass results to callback (e.g., FindingsView)
+            if self.on_scan_complete:
+                self.on_scan_complete(result)
 
             # Show success message
             self.set_status("Scan completed successfully")
