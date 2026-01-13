@@ -50,17 +50,12 @@ class FindingsView(ttk.Frame):
         self._build_ui()
 
     def _build_ui(self) -> None:
-        """Build the findings view UI components."""
-        # Configure grid weights for resizing
-        self.columnconfigure(0, weight=1)
-        self.rowconfigure(0, weight=0, minsize=35)   # Controls row - fixed height
-        self.rowconfigure(1, weight=3, minsize=120)  # Table gets more space, min height
-        self.rowconfigure(2, weight=1, minsize=100)  # Details panel, min height
+        """Build the findings view UI components using pack layout for stable resizing."""
+        # Use pack layout - more stable with PanedWindow resizing
 
-        # === Top controls row ===
+        # === Top controls row (fixed height) ===
         controls_frame = ttk.Frame(self)
-        controls_frame.grid(row=0, column=0, sticky="ew", padx=5, pady=5)
-        controls_frame.columnconfigure(4, weight=1)  # Search entry expands
+        controls_frame.pack(side=tk.TOP, fill=tk.X, padx=5, pady=5)
 
         # Title label
         title_label = ttk.Label(
@@ -68,10 +63,10 @@ class FindingsView(ttk.Frame):
             text="Findings",
             font=("TkDefaultFont", 11, "bold"),
         )
-        title_label.grid(row=0, column=0, padx=(5, 15), sticky="w")
+        title_label.pack(side=tk.LEFT, padx=(5, 15))
 
         # Module filter
-        ttk.Label(controls_frame, text="Module:").grid(row=0, column=1, padx=(5, 2))
+        ttk.Label(controls_frame, text="Module:").pack(side=tk.LEFT, padx=(5, 2))
         self.module_var = tk.StringVar(value="All")
         self.module_combo = ttk.Combobox(
             controls_frame,
@@ -80,11 +75,11 @@ class FindingsView(ttk.Frame):
             state="readonly",
             width=18,
         )
-        self.module_combo.grid(row=0, column=2, padx=(0, 10))
+        self.module_combo.pack(side=tk.LEFT, padx=(0, 10))
         self.module_combo.bind("<<ComboboxSelected>>", self._on_filter_change)
 
         # Severity filter
-        ttk.Label(controls_frame, text="Severity:").grid(row=0, column=3, padx=(5, 2))
+        ttk.Label(controls_frame, text="Severity:").pack(side=tk.LEFT, padx=(5, 2))
         self.severity_var = tk.StringVar(value="All")
         self.severity_combo = ttk.Combobox(
             controls_frame,
@@ -93,25 +88,53 @@ class FindingsView(ttk.Frame):
             state="readonly",
             width=12,
         )
-        self.severity_combo.grid(row=0, column=4, padx=(0, 10), sticky="w")
+        self.severity_combo.pack(side=tk.LEFT, padx=(0, 10))
         self.severity_combo.bind("<<ComboboxSelected>>", self._on_filter_change)
 
-        # Search entry
-        ttk.Label(controls_frame, text="Search:").grid(row=0, column=5, padx=(10, 2))
+        # Search entry (right side)
         self.search_var = tk.StringVar()
         self.search_entry = ttk.Entry(
             controls_frame,
             textvariable=self.search_var,
             width=25,
         )
-        self.search_entry.grid(row=0, column=6, padx=(0, 5), sticky="ew")
+        self.search_entry.pack(side=tk.RIGHT, padx=(0, 5))
+        ttk.Label(controls_frame, text="Search:").pack(side=tk.RIGHT, padx=(10, 2))
         self.search_var.trace_add("write", self._on_filter_change)
 
-        # === Table (Treeview) ===
+        # === Details panel (fixed height at bottom) ===
+        details_frame = ttk.LabelFrame(self, text="Details")
+        details_frame.pack(side=tk.BOTTOM, fill=tk.X, padx=5, pady=5)
+
+        # Details text widget with scrollbar (dark theme)
+        details_inner = ttk.Frame(details_frame)
+        details_inner.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
+
+        self.details_text = tk.Text(
+            details_inner,
+            wrap=tk.WORD,
+            state=tk.DISABLED,
+            height=6,
+            font=("Consolas", 9),
+            bg="#1e1e1e",
+            fg="#d4d4d4",
+            insertbackground="#d4d4d4",
+            selectbackground="#3e3e42",
+            selectforeground="#ffffff",
+        )
+        self.details_text.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+
+        details_scrollbar = ttk.Scrollbar(
+            details_inner,
+            orient=tk.VERTICAL,
+            command=self.details_text.yview,
+        )
+        details_scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+        self.details_text.configure(yscrollcommand=details_scrollbar.set)
+
+        # === Table (Treeview) - fills remaining space ===
         table_frame = ttk.Frame(self)
-        table_frame.grid(row=1, column=0, sticky="nsew", padx=5, pady=5)
-        table_frame.columnconfigure(0, weight=1)
-        table_frame.rowconfigure(0, weight=1)
+        table_frame.pack(side=tk.TOP, fill=tk.BOTH, expand=True, padx=5, pady=5)
 
         # Define columns
         columns = ("module", "severity", "title", "risk_score", "compliance_status")
@@ -135,11 +158,11 @@ class FindingsView(ttk.Frame):
         self.tree.column("risk_score", width=80, minwidth=60)
         self.tree.column("compliance_status", width=100, minwidth=80)
 
-        self.tree.grid(row=0, column=0, sticky="nsew")
+        self.tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
 
         # Vertical scrollbar
         scrollbar = ttk.Scrollbar(table_frame, orient=tk.VERTICAL, command=self.tree.yview)
-        scrollbar.grid(row=0, column=1, sticky="ns")
+        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
         self.tree.configure(yscrollcommand=scrollbar.set)
 
         # Bind selection event
@@ -148,35 +171,6 @@ class FindingsView(ttk.Frame):
         # Track sort state
         self._sort_column_name = ""
         self._sort_reverse = False
-
-        # === Details panel ===
-        details_frame = ttk.LabelFrame(self, text="Details")
-        details_frame.grid(row=2, column=0, sticky="nsew", padx=5, pady=5)
-        details_frame.columnconfigure(0, weight=1)
-        details_frame.rowconfigure(0, weight=1)
-
-        # Details text widget with scrollbar (dark theme)
-        self.details_text = tk.Text(
-            details_frame,
-            wrap=tk.WORD,
-            state=tk.DISABLED,
-            height=8,
-            font=("Consolas", 9),
-            bg="#1e1e1e",
-            fg="#d4d4d4",
-            insertbackground="#d4d4d4",
-            selectbackground="#3e3e42",
-            selectforeground="#ffffff",
-        )
-        self.details_text.grid(row=0, column=0, sticky="nsew", padx=5, pady=5)
-
-        details_scrollbar = ttk.Scrollbar(
-            details_frame,
-            orient=tk.VERTICAL,
-            command=self.details_text.yview,
-        )
-        details_scrollbar.grid(row=0, column=1, sticky="ns", pady=5)
-        self.details_text.configure(yscrollcommand=details_scrollbar.set)
 
     def set_results(self, engine_result: EngineResult) -> None:
         """
