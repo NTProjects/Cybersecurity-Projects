@@ -117,15 +117,24 @@ class MainWindow:
         menu items including view switching and metrics refresh options.
         """
         # Dark menu colors
-        menu_bg = "#252526"
+        menu_bg = "#1e1e1e"
         menu_fg = "#d4d4d4"
         menu_active_bg = "#3e3e42"
+        menu_disabled_fg = "#666666"
         
-        menu_bar = tk.Menu(self.root, bg=menu_bg, fg=menu_fg, activebackground=menu_active_bg, activeforeground="#ffffff")
+        menu_bar = tk.Menu(
+            self.root, bg=menu_bg, fg=menu_fg,
+            activebackground=menu_active_bg, activeforeground="#ffffff",
+            disabledforeground=menu_disabled_fg
+        )
         self.root.config(menu=menu_bar)
 
         # File menu
-        self.file_menu = tk.Menu(menu_bar, tearoff=0, bg=menu_bg, fg=menu_fg, activebackground=menu_active_bg, activeforeground="#ffffff")
+        self.file_menu = tk.Menu(
+            menu_bar, tearoff=0, bg=menu_bg, fg=menu_fg,
+            activebackground=menu_active_bg, activeforeground="#ffffff",
+            disabledforeground=menu_disabled_fg
+        )
         menu_bar.add_cascade(label="File", menu=self.file_menu)
         self.file_menu.add_command(
             label="Export Report...",
@@ -136,7 +145,11 @@ class MainWindow:
         self.file_menu.add_command(label="Exit", command=self._on_window_close)
 
         # View menu with view switching
-        self.view_menu = tk.Menu(menu_bar, tearoff=0, bg=menu_bg, fg=menu_fg, activebackground=menu_active_bg, activeforeground="#ffffff")
+        self.view_menu = tk.Menu(
+            menu_bar, tearoff=0, bg=menu_bg, fg=menu_fg,
+            activebackground=menu_active_bg, activeforeground="#ffffff",
+            disabledforeground=menu_disabled_fg
+        )
         menu_bar.add_cascade(label="View", menu=self.view_menu)
         self.view_menu.add_command(label="Dashboard", command=self._on_show_dashboard)
         self.view_menu.add_command(label="Scan Configuration", command=self._on_show_scanner)
@@ -147,7 +160,11 @@ class MainWindow:
         self.view_menu.add_command(label="Clear Findings", command=self._on_clear_findings)
 
         # Help menu
-        help_menu = tk.Menu(menu_bar, tearoff=0, bg=menu_bg, fg=menu_fg, activebackground=menu_active_bg, activeforeground="#ffffff")
+        help_menu = tk.Menu(
+            menu_bar, tearoff=0, bg=menu_bg, fg=menu_fg,
+            activebackground=menu_active_bg, activeforeground="#ffffff",
+            disabledforeground=menu_disabled_fg
+        )
         menu_bar.add_cascade(label="Help", menu=help_menu)
         help_menu.add_command(label="About", command=self._on_about)
 
@@ -346,7 +363,6 @@ class MainWindow:
         """Set the application icon for window and taskbar."""
         try:
             import ctypes
-            from ctypes import wintypes
             
             # Set unique App ID for Windows taskbar (prevents grouping with Python)
             app_id = "SOCAudit.Framework.GUI.1.0"
@@ -356,12 +372,29 @@ class MainWindow:
             self.root.update()  # Ensure window is created
             hwnd = ctypes.windll.user32.GetParent(self.root.winfo_id())
             
-            # DWMWA_USE_IMMERSIVE_DARK_MODE = 20 (Windows 10 build 18985+)
+            # DWMWA_USE_IMMERSIVE_DARK_MODE = 20 (Windows 10/11)
             DWMWA_USE_IMMERSIVE_DARK_MODE = 20
-            value = ctypes.c_int(1)  # 1 = dark mode
+            value = ctypes.c_int(1)
             ctypes.windll.dwmapi.DwmSetWindowAttribute(
                 hwnd, DWMWA_USE_IMMERSIVE_DARK_MODE,
                 ctypes.byref(value), ctypes.sizeof(value)
+            )
+            
+            # DWMWA_CAPTION_COLOR = 35 (Windows 11) - set title bar to dark grey
+            DWMWA_CAPTION_COLOR = 35
+            # Color is in BGR format: 0x001E1E1E = RGB(30, 30, 30)
+            color = ctypes.c_int(0x001E1E1E)
+            ctypes.windll.dwmapi.DwmSetWindowAttribute(
+                hwnd, DWMWA_CAPTION_COLOR,
+                ctypes.byref(color), ctypes.sizeof(color)
+            )
+            
+            # DWMWA_TEXT_COLOR = 36 (Windows 11) - set title text to light grey
+            DWMWA_TEXT_COLOR = 36
+            text_color = ctypes.c_int(0x00D4D4D4)  # BGR for #D4D4D4
+            ctypes.windll.dwmapi.DwmSetWindowAttribute(
+                hwnd, DWMWA_TEXT_COLOR,
+                ctypes.byref(text_color), ctypes.sizeof(text_color)
             )
         except (ImportError, AttributeError, OSError):
             pass  # Not on Windows or API not available
