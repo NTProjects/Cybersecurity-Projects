@@ -120,7 +120,7 @@ class MainWindow:
         menu_bg = "#d3d3d3"
         menu_fg = "#1e1e1e"
         menu_active_bg = "#b0b0b0"
-        menu_disabled_fg = "#808080"
+        menu_disabled_fg = "#1e1e1e"  # Match normal text color
         
         menu_bar = tk.Menu(
             self.root, bg=menu_bg, fg=menu_fg,
