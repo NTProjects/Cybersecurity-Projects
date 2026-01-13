@@ -344,13 +344,27 @@ class MainWindow:
 
     def _set_app_icon(self) -> None:
         """Set the application icon for window and taskbar."""
-        # Set unique App ID for Windows taskbar (prevents grouping with Python)
         try:
             import ctypes
+            from ctypes import wintypes
+            
+            # Set unique App ID for Windows taskbar (prevents grouping with Python)
             app_id = "SOCAudit.Framework.GUI.1.0"
             ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(app_id)
+            
+            # Set dark title bar on Windows 10/11
+            self.root.update()  # Ensure window is created
+            hwnd = ctypes.windll.user32.GetParent(self.root.winfo_id())
+            
+            # DWMWA_USE_IMMERSIVE_DARK_MODE = 20 (Windows 10 build 18985+)
+            DWMWA_USE_IMMERSIVE_DARK_MODE = 20
+            value = ctypes.c_int(1)  # 1 = dark mode
+            ctypes.windll.dwmapi.DwmSetWindowAttribute(
+                hwnd, DWMWA_USE_IMMERSIVE_DARK_MODE,
+                ctypes.byref(value), ctypes.sizeof(value)
+            )
         except (ImportError, AttributeError, OSError):
-            pass  # Not on Windows or ctypes not available
+            pass  # Not on Windows or API not available
         
         # Look for icon in assets folder
         icon_path = Path(__file__).parent / "assets" / "icon.ico"
