@@ -15,6 +15,7 @@ Architecture:
 from __future__ import annotations
 
 import tkinter as tk
+from pathlib import Path
 from tkinter import messagebox, ttk
 from typing import TYPE_CHECKING
 
@@ -79,6 +80,9 @@ class MainWindow:
         # Set window size and constraints
         self.root.geometry(f"{self.DEFAULT_WIDTH}x{self.DEFAULT_HEIGHT}")
         self.root.minsize(self.MIN_WIDTH, self.MIN_HEIGHT)
+
+        # Set application icon
+        self._set_app_icon()
 
         # Apply dark theme for eye-friendly appearance
         # To revert: comment out or remove this line
@@ -337,6 +341,27 @@ class MainWindow:
         self.dashboard_view.stop()
         # Destroy the window
         self.root.quit()
+
+    def _set_app_icon(self) -> None:
+        """Set the application icon for window and taskbar."""
+        # Look for icon in assets folder
+        icon_path = Path(__file__).parent / "assets" / "icon.ico"
+        
+        if icon_path.exists():
+            try:
+                self.root.iconbitmap(str(icon_path))
+            except tk.TclError:
+                pass  # Icon format not supported, continue without icon
+        # If no .ico, try .png for platforms that support it
+        else:
+            png_path = Path(__file__).parent / "assets" / "icon.png"
+            if png_path.exists():
+                try:
+                    icon_image = tk.PhotoImage(file=str(png_path))
+                    self.root.iconphoto(True, icon_image)
+                    self._icon_image = icon_image  # Keep reference
+                except tk.TclError:
+                    pass  # Continue without icon
 
     def _on_about(self) -> None:
         """Handle the Help > About menu action."""
