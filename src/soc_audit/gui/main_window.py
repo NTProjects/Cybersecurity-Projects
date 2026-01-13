@@ -344,24 +344,32 @@ class MainWindow:
 
     def _set_app_icon(self) -> None:
         """Set the application icon for window and taskbar."""
+        # Set unique App ID for Windows taskbar (prevents grouping with Python)
+        try:
+            import ctypes
+            app_id = "SOCAudit.Framework.GUI.1.0"
+            ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(app_id)
+        except (ImportError, AttributeError, OSError):
+            pass  # Not on Windows or ctypes not available
+        
         # Look for icon in assets folder
         icon_path = Path(__file__).parent / "assets" / "icon.ico"
         
         if icon_path.exists():
             try:
-                self.root.iconbitmap(str(icon_path))
+                self.root.iconbitmap(default=str(icon_path))
             except tk.TclError:
                 pass  # Icon format not supported, continue without icon
-        # If no .ico, try .png for platforms that support it
-        else:
-            png_path = Path(__file__).parent / "assets" / "icon.png"
-            if png_path.exists():
-                try:
-                    icon_image = tk.PhotoImage(file=str(png_path))
-                    self.root.iconphoto(True, icon_image)
-                    self._icon_image = icon_image  # Keep reference
-                except tk.TclError:
-                    pass  # Continue without icon
+        
+        # Also set iconphoto for better cross-platform support
+        png_path = Path(__file__).parent / "assets" / "icon.png"
+        if png_path.exists():
+            try:
+                icon_image = tk.PhotoImage(file=str(png_path))
+                self.root.iconphoto(True, icon_image)
+                self._icon_image = icon_image  # Keep reference to prevent garbage collection
+            except tk.TclError:
+                pass  # Continue without icon
 
     def _on_about(self) -> None:
         """Handle the Help > About menu action."""
