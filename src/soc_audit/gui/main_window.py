@@ -188,7 +188,7 @@ class MainWindow:
         self.scanner_container = ttk.Frame(self.content_frame)
 
         # Scanner config section (top) - fixed height
-        scanner_frame = tk.Frame(self.scanner_container, bg="#1e1e1e", height=120)
+        scanner_frame = tk.Frame(self.scanner_container, bg="#1e1e1e", height=150)
         scanner_frame.pack(side=tk.TOP, fill=tk.X)
         scanner_frame.pack_propagate(False)  # Keep fixed height
         
