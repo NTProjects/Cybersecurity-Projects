@@ -163,31 +163,24 @@ class MainWindow:
             refresh_ms=1000,
         )
 
-        # Scanner view with paned layout (using tk.PanedWindow for minsize support)
-        self.scanner_paned = tk.PanedWindow(
-            self.content_frame,
-            orient=tk.VERTICAL,
-            sashwidth=6,
-            sashrelief=tk.RAISED,
-            bg="#1e1e1e",
-            sashcursor="sb_v_double_arrow",
-        )
+        # Scanner view with fixed layout (no resizable divider - eliminates jitter)
+        self.scanner_container = ttk.Frame(self.content_frame)
 
-        # Scanner config pane (top) - with enforced minimum height for all content
-        scanner_frame = tk.Frame(self.scanner_paned, bg="#1e1e1e")
+        # Scanner config section (top) - fixed height
+        scanner_frame = tk.Frame(self.scanner_container, bg="#1e1e1e", height=120)
+        scanner_frame.pack(side=tk.TOP, fill=tk.X)
+        scanner_frame.pack_propagate(False)  # Keep fixed height
+        
         self.scanner_view = ScannerView(
             scanner_frame,
             self.set_status,
             on_scan_complete=self._on_scan_complete,
         )
         self.scanner_view.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
-        # minsize=180 ensures Config File + Run Scan button are always visible
-        self.scanner_paned.add(scanner_frame, minsize=180, sticky="nsew")
 
-        # Findings view (part of scanner pane) - with enforced minimum height
-        self.findings_view = FindingsView(self.scanner_paned)
-        # minsize=350 ensures filters + table headers + some rows + details are visible
-        self.scanner_paned.add(self.findings_view, minsize=350, sticky="nsew")
+        # Findings view (fills remaining space)
+        self.findings_view = FindingsView(self.scanner_container)
+        self.findings_view.pack(side=tk.TOP, fill=tk.BOTH, expand=True)
 
         # Standalone findings view for dedicated findings page
         self.findings_standalone = FindingsView(self.content_frame)
@@ -220,14 +213,14 @@ class MainWindow:
         """
         # Hide all views
         self.dashboard_view.grid_forget()
-        self.scanner_paned.grid_forget()
+        self.scanner_container.grid_forget()
         self.findings_standalone.grid_forget()
 
         # Show the requested view
         if view_name == "dashboard":
             self.dashboard_view.grid(row=0, column=0, sticky="nsew")
         elif view_name == "scanner":
-            self.scanner_paned.grid(row=0, column=0, sticky="nsew")
+            self.scanner_container.grid(row=0, column=0, sticky="nsew")
             self.set_status("Scan Configuration")
         elif view_name == "findings":
             self.findings_standalone.grid(row=0, column=0, sticky="nsew")
