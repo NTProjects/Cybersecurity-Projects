@@ -163,26 +163,29 @@ class MainWindow:
             refresh_ms=1000,
         )
 
-        # Scanner view with paned layout
-        self.scanner_paned = ttk.PanedWindow(self.content_frame, orient=tk.VERTICAL)
+        # Scanner view with paned layout (using tk.PanedWindow for minsize support)
+        self.scanner_paned = tk.PanedWindow(
+            self.content_frame,
+            orient=tk.VERTICAL,
+            sashwidth=6,
+            sashrelief=tk.RAISED,
+            bg="#1e1e1e",
+            sashcursor="sb_v_double_arrow",
+        )
 
-        # Scanner config pane (top) - fixed minimum height
-        scanner_frame = ttk.Frame(self.scanner_paned)
-        scanner_frame.configure(height=120)  # Minimum height
+        # Scanner config pane (top) - with enforced minimum height
+        scanner_frame = tk.Frame(self.scanner_paned, bg="#1e1e1e")
         self.scanner_view = ScannerView(
             scanner_frame,
             self.set_status,
             on_scan_complete=self._on_scan_complete,
         )
-        self.scanner_view.pack(fill=tk.X, padx=5, pady=5)
-        # Prevent pane from shrinking below content
-        scanner_frame.pack_propagate(False)
-        self.scanner_paned.add(scanner_frame, weight=0)
+        self.scanner_view.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
+        self.scanner_paned.add(scanner_frame, minsize=130, sticky="nsew")
 
-        # Findings view (part of scanner pane) - minimum height to prevent jitter
+        # Findings view (part of scanner pane) - with enforced minimum height
         self.findings_view = FindingsView(self.scanner_paned)
-        self.findings_view.configure(height=200)  # Minimum height
-        self.scanner_paned.add(self.findings_view, weight=1)
+        self.scanner_paned.add(self.findings_view, minsize=250, sticky="nsew")
 
         # Standalone findings view for dedicated findings page
         self.findings_standalone = FindingsView(self.content_frame)
