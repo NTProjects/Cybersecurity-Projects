@@ -116,15 +116,15 @@ class MainWindow:
         Sets up the File, View, and Help menus with their respective
         menu items including view switching and metrics refresh options.
         """
-        # Dark menu colors
-        menu_bg = "#1e1e1e"
-        menu_fg = "#d4d4d4"
-        menu_active_bg = "#3e3e42"
-        menu_disabled_fg = "#666666"
+        # Light grey menu colors
+        menu_bg = "#d3d3d3"
+        menu_fg = "#1e1e1e"
+        menu_active_bg = "#b0b0b0"
+        menu_disabled_fg = "#808080"
         
         menu_bar = tk.Menu(
             self.root, bg=menu_bg, fg=menu_fg,
-            activebackground=menu_active_bg, activeforeground="#ffffff",
+            activebackground=menu_active_bg, activeforeground="#000000",
             disabledforeground=menu_disabled_fg
         )
         self.root.config(menu=menu_bar)
@@ -132,7 +132,7 @@ class MainWindow:
         # File menu
         self.file_menu = tk.Menu(
             menu_bar, tearoff=0, bg=menu_bg, fg=menu_fg,
-            activebackground=menu_active_bg, activeforeground="#ffffff",
+            activebackground=menu_active_bg, activeforeground="#000000",
             disabledforeground=menu_disabled_fg
         )
         menu_bar.add_cascade(label="File", menu=self.file_menu)
@@ -147,7 +147,7 @@ class MainWindow:
         # View menu with view switching
         self.view_menu = tk.Menu(
             menu_bar, tearoff=0, bg=menu_bg, fg=menu_fg,
-            activebackground=menu_active_bg, activeforeground="#ffffff",
+            activebackground=menu_active_bg, activeforeground="#000000",
             disabledforeground=menu_disabled_fg
         )
         menu_bar.add_cascade(label="View", menu=self.view_menu)
@@ -162,7 +162,7 @@ class MainWindow:
         # Help menu
         help_menu = tk.Menu(
             menu_bar, tearoff=0, bg=menu_bg, fg=menu_fg,
-            activebackground=menu_active_bg, activeforeground="#ffffff",
+            activebackground=menu_active_bg, activeforeground="#000000",
             disabledforeground=menu_disabled_fg
         )
         menu_bar.add_cascade(label="Help", menu=help_menu)
@@ -368,30 +368,30 @@ class MainWindow:
             app_id = "SOCAudit.Framework.GUI.1.0"
             ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(app_id)
             
-            # Set dark title bar on Windows 10/11
+            # Set light grey title bar on Windows 10/11
             self.root.update()  # Ensure window is created
             hwnd = ctypes.windll.user32.GetParent(self.root.winfo_id())
             
-            # DWMWA_USE_IMMERSIVE_DARK_MODE = 20 (Windows 10/11)
+            # DWMWA_USE_IMMERSIVE_DARK_MODE = 20 (Windows 10/11) - disable dark mode
             DWMWA_USE_IMMERSIVE_DARK_MODE = 20
-            value = ctypes.c_int(1)
+            value = ctypes.c_int(0)  # 0 = light mode
             ctypes.windll.dwmapi.DwmSetWindowAttribute(
                 hwnd, DWMWA_USE_IMMERSIVE_DARK_MODE,
                 ctypes.byref(value), ctypes.sizeof(value)
             )
             
-            # DWMWA_CAPTION_COLOR = 35 (Windows 11) - set title bar to dark grey
+            # DWMWA_CAPTION_COLOR = 35 (Windows 11) - set title bar to light grey
             DWMWA_CAPTION_COLOR = 35
-            # Color is in BGR format: 0x001E1E1E = RGB(30, 30, 30)
-            color = ctypes.c_int(0x001E1E1E)
+            # Color is in BGR format: 0x00D3D3D3 = RGB(211, 211, 211) - light grey
+            color = ctypes.c_int(0x00D3D3D3)
             ctypes.windll.dwmapi.DwmSetWindowAttribute(
                 hwnd, DWMWA_CAPTION_COLOR,
                 ctypes.byref(color), ctypes.sizeof(color)
             )
             
-            # DWMWA_TEXT_COLOR = 36 (Windows 11) - set title text to light grey
+            # DWMWA_TEXT_COLOR = 36 (Windows 11) - set title text to dark
             DWMWA_TEXT_COLOR = 36
-            text_color = ctypes.c_int(0x00D4D4D4)  # BGR for #D4D4D4
+            text_color = ctypes.c_int(0x001E1E1E)  # BGR for #1E1E1E - dark text
             ctypes.windll.dwmapi.DwmSetWindowAttribute(
                 hwnd, DWMWA_TEXT_COLOR,
                 ctypes.byref(text_color), ctypes.sizeof(text_color)
