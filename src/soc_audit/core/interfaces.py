@@ -19,6 +19,12 @@ class Finding:
     risk_score: Optional[int] = None
     control_ids: list[str] | None = None
     compliance_status: str | None = None
+    # Phase 5.4: MITRE ATT&CK and RBA fields
+    mitre_tactics: list[str] | None = None
+    mitre_techniques: list[str] | None = None
+    mitre_ids: list[str] | None = None
+    rba_score: int | None = None
+    timestamp: str | None = None  # ISO string for UI display
 
 
 @dataclass(frozen=True)

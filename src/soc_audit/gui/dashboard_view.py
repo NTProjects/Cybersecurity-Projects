@@ -11,11 +11,16 @@ The dashboard supports:
 """
 from __future__ import annotations
 
+import queue
 import tkinter as tk
+from dataclasses import replace
 from datetime import datetime
 from tkinter import ttk
 from typing import TYPE_CHECKING, Any, Callable
 
+from soc_audit.core.collectors import CollectorManager, TelemetryEvent
+from soc_audit.core.mitre import load_mitre_mapping, map_finding_to_mitre
+from soc_audit.core.rba import compute_rba_score
 from soc_audit.gui.metrics import get_system_metrics
 from soc_audit.gui.panels import (
     AlertsPanel,
@@ -59,6 +64,7 @@ class DashboardView(ttk.Frame):
         parent: tk.Widget,
         on_status: Callable[[str], None] | None = None,
         refresh_ms: int = 1000,
+        config: dict[str, Any] | None = None,
     ) -> None:
         """
         Initialize the dashboard view.
@@ -67,16 +73,34 @@ class DashboardView(ttk.Frame):
             parent: Parent widget.
             on_status: Optional callback for status bar updates.
             refresh_ms: Metrics refresh interval in milliseconds (default: 1000).
+            config: Optional configuration dict for collectors/MITRE/RBA.
         """
         super().__init__(parent)
         self.on_status = on_status
         self.refresh_ms = refresh_ms
+        self.config = config or {}
         self._after_id: str | None = None
         self._stream_after_id: str | None = None
+        self._collector_after_id: str | None = None
         self._last_error: str | None = None
         self._streaming: bool = False
         self._stream_queue: list[tuple[Any, str]] = []  # (finding, module_name)
         self._stream_delay_ms: int = 300
+        
+        # Collectors setup
+        self._collector_queue: queue.Queue[TelemetryEvent] = queue.Queue()
+        self._collector_manager: CollectorManager | None = None
+        self._mitre_mappings = None
+        self._rba_weights = self.config.get("rba", {}).get("severity_weights")
+        
+        # Load MITRE mappings
+        try:
+            mitre_config = self.config.get("mitre", {})
+            mapping_file = mitre_config.get("mapping_file", "rules/mitre-mapping.yaml")
+            self._mitre_mappings = load_mitre_mapping(mapping_file)
+        except Exception:
+            self._mitre_mappings = []
+        
         self._build_ui()
 
     def _build_ui(self) -> None:
@@ -143,16 +167,29 @@ class DashboardView(ttk.Frame):
     # ==================== Metrics Refresh ====================
 
     def start(self) -> None:
-        """Start periodic metrics refresh."""
+        """Start periodic metrics refresh and collectors."""
         if self._after_id is None:
             self._tick()
+        
+        # Start collectors if enabled
+        collectors_config = self.config.get("collectors", {})
+        if collectors_config.get("enabled", True):
+            self._start_collectors(collectors_config)
+        
+        # Start collector event polling
+        if self._collector_after_id is None:
+            self._poll_collector_events()
 
     def stop(self) -> None:
-        """Stop periodic metrics refresh and streaming."""
+        """Stop periodic metrics refresh, streaming, and collectors."""
         if self._after_id is not None:
             self.after_cancel(self._after_id)
             self._after_id = None
+        if self._collector_after_id is not None:
+            self.after_cancel(self._collector_after_id)
+            self._collector_after_id = None
         self.stop_streaming()
+        self._stop_collectors()
 
     def refresh_now(self) -> None:
         """Perform an immediate metrics refresh."""
@@ -200,11 +237,13 @@ class DashboardView(ttk.Frame):
         # Clear panels for fresh display
         self.clear_findings()
 
-        # Build the queue of findings
+        # Build the queue of findings with MITRE+RBA enrichment
         self._stream_queue = []
         for module_result in result.module_results:
             for finding in module_result.findings:
-                self._stream_queue.append((finding, module_result.module_name))
+                # Enrich finding with MITRE and RBA
+                enriched_finding = self._enrich_finding(finding, module_result.module_name)
+                self._stream_queue.append((enriched_finding, module_result.module_name))
 
         if not self._stream_queue:
             self.set_status("Scan complete - No findings")
@@ -251,7 +290,7 @@ class DashboardView(ttk.Frame):
         time_display = self._format_time_ago(timestamp)
 
         # Update Alerts panel (Notable Events)
-        self.alerts_panel.append_finding(finding, module_name, time_display)
+        self.alerts_panel.append_finding(finding, module_name, time_display, source="engine")
 
         # Update Timeline
         self.timeline_panel.append_event(finding, module_name, timestamp)
@@ -309,3 +348,126 @@ class DashboardView(ttk.Frame):
         self.timeline_panel.clear()
         self.entities_panel.clear()
         self.details_panel.clear()
+
+    # ==================== MITRE + RBA Enrichment ====================
+
+    def _enrich_finding(self, finding: Finding, module_name: str) -> Finding:
+        """
+        Enrich a finding with MITRE ATT&CK mappings and RBA score.
+
+        Args:
+            finding: The finding to enrich.
+            module_name: Name of the module that produced the finding.
+
+        Returns:
+            Enriched Finding with MITRE and RBA fields set.
+        """
+        # Create a finding-like object for MITRE mapping
+        class FindingForMapping:
+            def __init__(self, finding: Finding, module_name: str):
+                self.title = finding.title
+                self.module_name = module_name
+
+        mapping_obj = FindingForMapping(finding, module_name)
+        tactics, techniques, ids = map_finding_to_mitre(mapping_obj, self._mitre_mappings)
+
+        # Compute RBA score
+        rba_score, rba_breakdown = compute_rba_score(
+            finding.severity,
+            finding.risk_score,
+            ids if ids else None,
+            severity_weights=self._rba_weights,
+        )
+
+        # Create enriched finding (since Finding is frozen, use replace)
+        timestamp_iso = datetime.utcnow().isoformat()
+        return replace(
+            finding,
+            mitre_tactics=tactics if tactics else None,
+            mitre_techniques=techniques if techniques else None,
+            mitre_ids=ids if ids else None,
+            rba_score=rba_score,
+            timestamp=timestamp_iso,
+        )
+
+    # ==================== Collectors ====================
+
+    def _start_collectors(self, collectors_config: dict[str, Any]) -> None:
+        """Start the collector manager."""
+        if self._collector_manager is not None:
+            return
+
+        def metrics_callback(metrics: dict[str, Any]) -> None:
+            """Callback to update metrics panel directly."""
+            try:
+                self.metrics_panel.update_metrics(metrics)
+            except Exception:
+                pass
+
+        try:
+            self._collector_manager = CollectorManager(
+                self._collector_queue,
+                collectors_config,
+                metrics_callback=metrics_callback,
+            )
+            self._collector_manager.start()
+        except Exception:
+            pass  # Non-fatal
+
+    def _stop_collectors(self) -> None:
+        """Stop the collector manager."""
+        if self._collector_manager:
+            try:
+                self._collector_manager.stop()
+            except Exception:
+                pass
+            self._collector_manager = None
+
+    def _poll_collector_events(self) -> None:
+        """Poll collector event queue and process events (Tkinter-safe)."""
+        # Drain queue (non-blocking)
+        processed = 0
+        while processed < 10:  # Limit per tick
+            try:
+                event = self._collector_queue.get_nowait()
+                self._process_collector_event(event)
+                processed += 1
+            except queue.Empty:
+                break
+
+        # Schedule next poll
+        self._collector_after_id = self.after(500, self._poll_collector_events)  # Poll every 500ms
+
+    def _process_collector_event(self, event: TelemetryEvent) -> None:
+        """Process a collector telemetry event."""
+        # Convert TelemetryEvent to Finding-like object for display
+        from soc_audit.core.interfaces import Finding
+
+        finding = Finding(
+            title=event.title,
+            description=f"Telemetry event from {event.source}",
+            severity=event.severity,
+            evidence=event.evidence,
+            mitre_tactics=event.mitre_tactics,
+            mitre_techniques=event.mitre_techniques,
+            mitre_ids=event.mitre_ids,
+            rba_score=event.rba_score,
+            timestamp=event.timestamp.isoformat(),
+        )
+
+        # Add to alerts panel
+        time_display = event.timestamp.strftime("%H:%M:%S")
+        self.alerts_panel.append_finding(finding, event.module, time_display, source=event.source)
+
+        # Add to timeline
+        self.timeline_panel.append_event(finding, event.module, event.timestamp)
+
+        # Update entities if applicable
+        if event.source == "logs" and event.evidence:
+            # Extract IP and username from log events
+            source_ip = event.evidence.get("source_ip")
+            username = event.evidence.get("username")
+            if source_ip:
+                self.entities_panel.increment_entity("IPs", source_ip)
+            if username:
+                self.entities_panel.increment_entity("Users", username)

@@ -1,0 +1,59 @@
+# MITRE ATT&CK mapping rules for SOC Audit findings
+#
+# Each mapping rule matches findings based on module name and title patterns,
+# then assigns MITRE ATT&CK tactics, techniques, and technique IDs.
+
+mappings:
+  # Log analyzer: Repeated authentication failures
+  - match:
+      module: "log_analyzer"
+      title_contains: ["Repeated", "authentication failures"]
+    mitre:
+      tactics: ["Credential Access"]
+      techniques: ["Brute Force"]
+      ids: ["T1110"]
+
+  # Firewall analyzer: Overly permissive rules
+  - match:
+      module: "firewall_analyzer"
+      title_contains: ["Overly permissive"]
+    mitre:
+      tactics: ["Defense Evasion"]
+      techniques: ["Impair Defenses"]
+      ids: ["T1562"]
+
+  # Port risk analyzer: Exposed SSH
+  - match:
+      module: "port_risk_analyzer"
+      title_contains: ["SSH", "22"]
+    mitre:
+      tactics: ["Initial Access"]
+      techniques: ["Valid Accounts", "Exploit Public-Facing Application"]
+      ids: ["T1078", "T1190"]
+
+  # Port risk analyzer: Exposed HTTP
+  - match:
+      module: "port_risk_analyzer"
+      title_contains: ["HTTP", "80"]
+    mitre:
+      tactics: ["Initial Access"]
+      techniques: ["Exploit Public-Facing Application"]
+      ids: ["T1190"]
+
+  # Port risk analyzer: Exposed HTTPS
+  - match:
+      module: "port_risk_analyzer"
+      title_contains: ["HTTPS", "443"]
+    mitre:
+      tactics: ["Initial Access"]
+      techniques: ["Exploit Public-Facing Application"]
+      ids: ["T1190"]
+
+  # Generic compliance findings
+  - match:
+      module: "compliance_mapper"
+      title_contains: []
+    mitre:
+      tactics: ["Defense Evasion"]
+      techniques: ["Impair Defenses"]
+      ids: ["TA0005"]

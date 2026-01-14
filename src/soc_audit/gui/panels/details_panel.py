@@ -155,6 +155,56 @@ class DetailsPanel(ttk.LabelFrame):
             self.text.insert(tk.END, "Risk Score:  ", "label")
             self.text.insert(tk.END, f"{finding.risk_score}/100\n", "value")
 
+        # RBA Score and Breakdown (Phase 5.4)
+        rba_score = getattr(finding, "rba_score", None)
+        if rba_score is not None:
+            self.text.insert(tk.END, "\n")
+            self.text.insert(tk.END, "RBA Score:   ", "label")
+            self.text.insert(tk.END, f"{rba_score}/100\n", "value")
+            
+            # Try to get breakdown from finding, or compute it
+            rba_breakdown = getattr(finding, "rba_breakdown", None)
+            if not rba_breakdown:
+                # Compute breakdown on-demand
+                try:
+                    from soc_audit.core.rba import compute_rba_score
+                    mitre_ids = getattr(finding, "mitre_ids", None)
+                    _, rba_breakdown = compute_rba_score(
+                        finding.severity,
+                        finding.risk_score,
+                        mitre_ids,
+                    )
+                except Exception:
+                    rba_breakdown = None
+            
+            if rba_breakdown:
+                self.text.insert(tk.END, "\nRBA Breakdown:\n", "label")
+                self.text.insert(tk.END, f"  Base Severity: {rba_breakdown.get('base_severity', 0)}\n", "value")
+                self.text.insert(tk.END, f"  MITRE Bonus:   +{rba_breakdown.get('mitre_bonus', 0)}\n", "value")
+                self.text.insert(tk.END, f"  Risk Bonus:    +{rba_breakdown.get('risk_bonus', 0)}\n", "value")
+
+        # MITRE ATT&CK (Phase 5.4)
+        mitre_tactics = getattr(finding, "mitre_tactics", None)
+        mitre_techniques = getattr(finding, "mitre_techniques", None)
+        mitre_ids = getattr(finding, "mitre_ids", None)
+        
+        if mitre_tactics or mitre_techniques or mitre_ids:
+            self.text.insert(tk.END, "\n" + "─" * 42 + "\n", "separator")
+            self.text.insert(tk.END, "MITRE ATT&CK\n", "header")
+            self.text.insert(tk.END, "─" * 42 + "\n", "separator")
+            
+            if mitre_tactics:
+                self.text.insert(tk.END, "Tactics:     ", "label")
+                self.text.insert(tk.END, f"{', '.join(mitre_tactics)}\n", "value")
+            
+            if mitre_techniques:
+                self.text.insert(tk.END, "Techniques:  ", "label")
+                self.text.insert(tk.END, f"{', '.join(mitre_techniques)}\n", "value")
+            
+            if mitre_ids:
+                self.text.insert(tk.END, "Technique IDs: ", "label")
+                self.text.insert(tk.END, f"{', '.join(mitre_ids)}\n", "value")
+
         # Compliance (if present)
         if finding.control_ids:
             self.text.insert(tk.END, "Control IDs: ", "label")

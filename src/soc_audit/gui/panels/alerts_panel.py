@@ -62,20 +62,26 @@ class AlertsPanel(ttk.LabelFrame):
         # Configure tag colors for severity highlighting
         style = ttk.Style()
         
-        # Create treeview
-        columns = ("severity", "module", "title", "time")
+        # Create treeview with RBA/MITRE/Source columns
+        columns = ("severity", "rba", "module", "title", "mitre", "time", "source")
         self.tree = ttk.Treeview(self, columns=columns, show="headings", selectmode="browse")
 
         # Configure columns
         self.tree.heading("severity", text="Severity")
+        self.tree.heading("rba", text="RBA")
         self.tree.heading("module", text="Module")
         self.tree.heading("title", text="Title")
+        self.tree.heading("mitre", text="MITRE")
         self.tree.heading("time", text="Time")
+        self.tree.heading("source", text="Source")
 
         self.tree.column("severity", width=70, minwidth=50)
+        self.tree.column("rba", width=50, minwidth=40)
         self.tree.column("module", width=120, minwidth=80)
-        self.tree.column("title", width=250, minwidth=150)
+        self.tree.column("title", width=200, minwidth=150)
+        self.tree.column("mitre", width=100, minwidth=60)
         self.tree.column("time", width=60, minwidth=40)
+        self.tree.column("source", width=80, minwidth=50)
 
         # Configure severity tags for row coloring
         self.tree.tag_configure("critical", background="#4a1a1a")
@@ -83,6 +89,10 @@ class AlertsPanel(ttk.LabelFrame):
         self.tree.tag_configure("medium", background="#4a3a1a")
         self.tree.tag_configure("low", background="#1a2a4a")
         self.tree.tag_configure("info", background="#2a2a2a")
+        
+        # RBA-based highlighting
+        self.tree.tag_configure("rba_high", background="#5a1a1a")  # RBA >= 80
+        self.tree.tag_configure("rba_medium", background="#5a2a1a")  # RBA 50-79
 
         self.tree.grid(row=0, column=0, sticky="nsew")
 
@@ -111,16 +121,25 @@ class AlertsPanel(ttk.LabelFrame):
         if values and self.on_select:
             data = {
                 "severity": values[0] if len(values) > 0 else "",
-                "module": values[1] if len(values) > 1 else "",
-                "title": values[2] if len(values) > 2 else "",
-                "time": values[3] if len(values) > 3 else "",
+                "rba": values[1] if len(values) > 1 else "",
+                "module": values[2] if len(values) > 2 else "",
+                "title": values[3] if len(values) > 3 else "",
+                "mitre": values[4] if len(values) > 4 else "",
+                "time": values[5] if len(values) > 5 else "",
+                "source": values[6] if len(values) > 6 else "",
             }
             # Include the Finding object if available for drill-down
             if 0 <= idx < len(self.findings_cache):
                 data["finding"] = self.findings_cache[idx]
             self.on_select(data)
 
-    def append_finding(self, finding: Finding, module_name: str, timestamp: str = "Now") -> None:
+    def append_finding(
+        self,
+        finding: Finding,
+        module_name: str,
+        timestamp: str = "Now",
+        source: str = "engine",
+    ) -> None:
         """
         Append a single finding to the alerts table (streaming mode).
 
@@ -128,9 +147,26 @@ class AlertsPanel(ttk.LabelFrame):
             finding: The Finding object to append.
             module_name: Name of the module that produced the finding.
             timestamp: Display timestamp (default: "Now").
+            source: Source of the finding ("engine", "metrics", "logs", etc.).
         """
         severity = finding.severity.lower()
         tag = severity if severity in SEVERITY_COLORS else "info"
+        
+        # RBA-based highlighting
+        rba_score = getattr(finding, "rba_score", None) or 0
+        if rba_score >= 80:
+            tag = "rba_high"
+        elif rba_score >= 50:
+            tag = "rba_medium" if tag == "info" else tag
+        
+        # Format RBA score
+        rba_display = str(rba_score) if rba_score is not None and rba_score > 0 else "-"
+        
+        # Format MITRE IDs (truncate if long)
+        mitre_ids = getattr(finding, "mitre_ids", None) or []
+        mitre_display = ",".join(mitre_ids[:3]) if mitre_ids else "-"
+        if len(mitre_ids) > 3:
+            mitre_display += "…"
         
         # Cache the finding for drill-down
         self.findings_cache.append(finding)
@@ -139,7 +175,15 @@ class AlertsPanel(ttk.LabelFrame):
         self.tree.insert(
             "",
             0,  # Insert at top
-            values=(finding.severity.capitalize(), module_name, finding.title, timestamp),
+            values=(
+                finding.severity.capitalize(),
+                rba_display,
+                module_name,
+                finding.title,
+                mitre_display,
+                timestamp,
+                source,
+            ),
             tags=(tag,),
         )
         

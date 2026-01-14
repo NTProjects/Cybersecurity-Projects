@@ -14,11 +14,13 @@ Architecture:
 """
 from __future__ import annotations
 
+import json
 import tkinter as tk
 from pathlib import Path
 from tkinter import messagebox, ttk
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
+from soc_audit.core.config import load_config
 from soc_audit.gui.dashboard_view import DashboardView
 from soc_audit.gui.findings_view import FindingsView
 from soc_audit.gui.report_export import ReportExportView
@@ -95,6 +97,15 @@ class MainWindow:
         # Initialize state
         self.latest_result: EngineResult | None = None
         self.current_view: str = "dashboard"
+        
+        # Load config (with defaults)
+        self.config: dict[str, Any] = {}
+        try:
+            default_config_path = Path("config/default.json")
+            if default_config_path.exists():
+                self.config = load_config(str(default_config_path))
+        except Exception:
+            pass  # Use empty config if load fails
 
         # Build UI components
         self._create_menu_bar()
@@ -155,9 +166,18 @@ class MainWindow:
         self.view_menu.add_command(label="Scan Configuration", command=self._on_show_scanner)
         self.view_menu.add_command(label="Findings", command=self._on_show_findings)
         self.view_menu.add_separator()
+        self.view_menu.add_separator()
         self.view_menu.add_command(label="Refresh Metrics", command=self._on_refresh_metrics)
         self.view_menu.add_command(label="Stop Alert Stream", command=self._on_stop_streaming)
         self.view_menu.add_command(label="Clear Findings", command=self._on_clear_findings)
+        self.view_menu.add_separator()
+        # Collectors toggle
+        self._collectors_enabled = tk.BooleanVar(value=self.config.get("collectors", {}).get("enabled", True))
+        self.view_menu.add_checkbutton(
+            label="Live Collectors",
+            command=self._on_toggle_collectors,
+            variable=self._collectors_enabled,
+        )
 
         # Help menu
         help_menu = tk.Menu(
@@ -182,6 +202,7 @@ class MainWindow:
             self.content_frame,
             on_status=self.set_status,
             refresh_ms=1000,
+            config=self.config,
         )
 
         # Scanner view with fixed layout (no resizable divider - eliminates jitter)
@@ -240,6 +261,7 @@ class MainWindow:
         # Show the requested view
         if view_name == "dashboard":
             self.dashboard_view.grid(row=0, column=0, sticky="nsew")
+            self.dashboard_view.start()  # Ensure dashboard is started when shown
         elif view_name == "scanner":
             self.scanner_container.grid(row=0, column=0, sticky="nsew")
             self.set_status("Scan Configuration")
@@ -273,6 +295,23 @@ class MainWindow:
             self.set_status("Alert streaming stopped")
         else:
             self.set_status("No stream in progress")
+
+    def _on_toggle_collectors(self) -> None:
+        """Handle View > Live Collectors toggle."""
+        enabled = self._collectors_enabled.get()
+        # Update config
+        if "collectors" not in self.config:
+            self.config["collectors"] = {}
+        self.config["collectors"]["enabled"] = enabled
+        
+        # Update dashboard (it will handle start/stop internally)
+        if enabled:
+            collectors_config = self.config.get("collectors", {})
+            self.dashboard_view._start_collectors(collectors_config)
+            self.set_status("Live collectors enabled")
+        else:
+            self.dashboard_view._stop_collectors()
+            self.set_status("Live collectors disabled")
 
     def set_status(self, message: str) -> None:
         """

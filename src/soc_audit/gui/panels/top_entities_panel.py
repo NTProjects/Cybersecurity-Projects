@@ -129,6 +129,24 @@ class TopEntitiesPanel(ttk.LabelFrame):
         # Refresh displays
         self._refresh_all_trees()
 
+    def increment_entity(self, entity_type: str, entity_name: str) -> None:
+        """
+        Increment count for a specific entity.
+
+        Args:
+            entity_type: Type of entity ("IPs", "Users", "Ports").
+            entity_name: Name/value of the entity.
+        """
+        if entity_type == "IPs":
+            self.ip_counts[entity_name] += 1
+            self._refresh_tree(self.ip_tree, self.ip_counts)
+        elif entity_type == "Users":
+            self.user_counts[entity_name] += 1
+            self._refresh_tree(self.user_tree, self.user_counts)
+        elif entity_type == "Ports":
+            self.port_counts[entity_name] += 1
+            self._refresh_tree(self.port_tree, self.port_counts)
+
     def _extract_ips(self, evidence: dict[str, Any]) -> None:
         """Extract IP addresses from evidence."""
         # Common evidence field names for IPs
