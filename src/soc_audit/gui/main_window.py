@@ -189,6 +189,9 @@ class MainWindow:
             command=self._on_toggle_show_suppressed,
             variable=self._show_suppressed,
         )
+        # Phase 6: Backend status
+        self.view_menu.add_separator()
+        self.view_menu.add_command(label="Backend Status", command=self._on_backend_status)
         
         # Phase 5.5: Alerts menu
         self.alerts_menu = tk.Menu(
@@ -349,6 +352,45 @@ class MainWindow:
         show = self._show_suppressed.get()
         self.dashboard_view.toggle_show_suppressed(show)
         self.set_status("Show suppressed: " + ("ON" if show else "OFF"))
+    
+    def _on_backend_status(self) -> None:
+        """Handle View > Backend Status menu action."""
+        backend_config = self.config.get("backend", {})
+        enabled = backend_config.get("enabled", False)
+        
+        if not enabled:
+            messagebox.showinfo(
+                "Backend Status",
+                "Backend mode is disabled.\n\n"
+                "To enable, set 'backend.enabled' to true in config/default.json"
+            )
+            return
+        
+        # Get backend client status
+        backend_client = getattr(self.dashboard_view, "_backend_client", None)
+        if backend_client:
+            status = backend_client.status
+            api_url = backend_config.get("api_url", "N/A")
+            ws_url = backend_config.get("ws_url", "N/A")
+            use_ws = backend_config.get("use_websocket", False)
+            
+            status_msg = (
+                f"Backend Status: {status.upper()}\n\n"
+                f"API URL: {api_url}\n"
+                f"WebSocket URL: {ws_url if use_ws else 'Not used'}\n"
+                f"Poll Interval: {backend_config.get('poll_interval_seconds', 5.0)}s\n"
+            )
+            
+            if backend_client.last_error:
+                status_msg += f"\nLast Error: {backend_client.last_error}"
+            
+            messagebox.showinfo("Backend Status", status_msg)
+        else:
+            messagebox.showwarning(
+                "Backend Status",
+                "Backend client not initialized.\n\n"
+                "Check configuration and restart the application."
+            )
     
     # Phase 5.5: Alert actions
     def _on_ack_alert(self) -> None:

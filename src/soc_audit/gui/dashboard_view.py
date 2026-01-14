@@ -21,10 +21,11 @@ from typing import TYPE_CHECKING, Any, Callable
 from soc_audit.core.collectors import CollectorManager, TelemetryEvent
 from soc_audit.core.incidents import IncidentEngine
 from soc_audit.core.mitre import load_mitre_mapping, map_finding_to_mitre
-from soc_audit.core.models import AlertEvent, normalize_event_from_finding, normalize_event_from_telemetry
+from soc_audit.core.models import AlertEvent, Incident, normalize_event_from_finding, normalize_event_from_telemetry
 from soc_audit.core.rba import compute_rba_score
 from soc_audit.core.storage import JSONStorage, SQLiteStorage, Storage
 from soc_audit.core.suppression import event_is_suppressed, load_suppressions
+from soc_audit.gui.backend.client import BackendClient
 from soc_audit.gui.metrics import get_system_metrics
 from soc_audit.gui.panels import (
     AlertsPanel,
@@ -146,6 +147,33 @@ class DashboardView(ttk.Frame):
             except Exception:
                 self._suppression_rules = []
         
+        # Phase 6: Backend client (optional)
+        self._backend_client: BackendClient | None = None
+        self._backend_alert_ids: set[str] = set()  # Track backend alerts for deduplication
+        backend_config = self.config.get("backend", {})
+        if backend_config.get("enabled", False):
+            try:
+                api_url = backend_config.get("api_url", "http://127.0.0.1:8001")
+                ws_url = backend_config.get("ws_url")
+                api_key = backend_config.get("api_key")
+                poll_interval = backend_config.get("poll_interval_seconds", 5.0)
+                use_ws = backend_config.get("use_websocket", True)
+                
+                self._backend_client = BackendClient(
+                    api_url=api_url,
+                    ws_url=ws_url,
+                    api_key=api_key,
+                    poll_interval_seconds=poll_interval,
+                    use_websocket=use_ws,
+                    on_alert=self._process_backend_alert,
+                    on_incident=self._process_backend_incident,
+                    on_status=self._on_backend_status,
+                )
+            except Exception as e:
+                if self.on_status:
+                    self.on_status(f"Backend client init error: {e}")
+                self._backend_client = None
+        
         self._build_ui()
 
     def _build_ui(self) -> None:
@@ -216,7 +244,7 @@ class DashboardView(ttk.Frame):
     # ==================== Metrics Refresh ====================
 
     def start(self) -> None:
-        """Start periodic metrics refresh and collectors."""
+        """Start periodic metrics refresh, collectors, and backend client."""
         if self._after_id is None:
             self._tick()
         
@@ -228,9 +256,19 @@ class DashboardView(ttk.Frame):
         # Start collector event polling
         if self._collector_after_id is None:
             self._poll_collector_events()
+        
+        # Start backend client if enabled
+        if self._backend_client:
+            try:
+                self._backend_client.start()
+                if self.on_status:
+                    self.on_status("Backend client started")
+            except Exception as e:
+                if self.on_status:
+                    self.on_status(f"Backend start error: {e}")
 
     def stop(self) -> None:
-        """Stop periodic metrics refresh, streaming, and collectors."""
+        """Stop periodic metrics refresh, streaming, collectors, and backend client."""
         if self._after_id is not None:
             self.after_cancel(self._after_id)
             self._after_id = None
@@ -239,6 +277,14 @@ class DashboardView(ttk.Frame):
             self._collector_after_id = None
         self.stop_streaming()
         self._stop_collectors()
+        
+        # Stop backend client
+        if self._backend_client:
+            try:
+                self._backend_client.stop()
+            except Exception:
+                pass
+            self._backend_client = None
 
     def refresh_now(self) -> None:
         """Perform an immediate metrics refresh."""
@@ -581,10 +627,104 @@ class DashboardView(ttk.Frame):
                 if username:
                     self.entities_panel.increment_entity("Users", username)
     
+    # ==================== Phase 6: Backend Event Processing ====================
+    
+    def _process_backend_alert(self, alert_event: AlertEvent) -> None:
+        """
+        Process an alert event received from the backend.
+        
+        Args:
+            alert_event: AlertEvent from backend API.
+        """
+        # Deduplicate by alert_id
+        if alert_event.id in self._backend_alert_ids:
+            return
+        self._backend_alert_ids.add(alert_event.id)
+        
+        # Ensure source is "backend" for display
+        alert_event.source = "backend"
+        
+        # Convert to Finding for display
+        from soc_audit.core.interfaces import Finding
+        
+        finding = Finding(
+            title=alert_event.title,
+            description=f"Alert from backend: {alert_event.module}",
+            severity=alert_event.severity,
+            evidence=alert_event.evidence,
+            mitre_ids=alert_event.mitre_ids,
+            rba_score=alert_event.rba_score,
+            timestamp=alert_event.timestamp.isoformat(),
+        )
+        
+        # Display if not suppressed or if show_suppressed is True
+        if not alert_event.suppressed or self._show_suppressed:
+            time_display = self._format_time_ago(alert_event.timestamp)
+            
+            # Update Alerts panel
+            self.alerts_panel.append_finding(
+                finding, alert_event.module, time_display, source="backend", alert_event=alert_event
+            )
+            
+            # Update Timeline
+            self.timeline_panel.append_event(finding, alert_event.module, alert_event.timestamp)
+            
+            # Update Entity aggregation
+            self.entities_panel.update_from_finding(finding)
+    
+    def _process_backend_incident(self, incident: Incident) -> None:
+        """
+        Process an incident received from the backend.
+        
+        Args:
+            incident: Incident from backend API.
+        """
+        # For MVP, incidents are displayed via alerts panel
+        # Future: could add incidents panel or update existing incidents display
+        pass
+    
+    def _on_backend_status(self, status: str, message: str) -> None:
+        """
+        Handle backend status updates.
+        
+        Args:
+            status: Status string ("connected", "polling", "disconnected", "error").
+            message: Status message.
+        """
+        if self.on_status:
+            self.on_status(f"Backend: {message}")
+        
+        # Add to timeline (use append_event with a simple Finding-like object)
+        from soc_audit.core.interfaces import Finding
+        finding = Finding(
+            title=f"Backend {status}",
+            description=message,
+            severity="info" if status in ("connected", "polling") else "warning",
+        )
+        self.timeline_panel.append_event(finding, "backend", datetime.utcnow())
+    
     # ==================== Phase 5.5: SOC Workflow Actions ====================
     
     def ack_alert(self, alert_id: str) -> None:
         """Acknowledge an alert."""
+        # Check if alert is from backend
+        is_backend_alert = alert_id in self._backend_alert_ids
+        
+        if is_backend_alert and self._backend_client:
+            # Update via backend API
+            try:
+                # For MVP, toggle (assume current state is opposite)
+                self._backend_client.ack_alert(alert_id, True)  # Acknowledge
+                # Update UI
+                self.alerts_panel.update_alert_ack(alert_id, True)
+                if self.on_status:
+                    self.on_status(f"Alert {alert_id} acknowledged via backend")
+            except Exception as e:
+                if self.on_status:
+                    self.on_status(f"Backend ack error: {e}")
+            return
+        
+        # Local alert handling
         if self._storage:
             # Load alert to check current state
             alerts = self._storage.load_recent_alerts(limit=1000)
@@ -606,6 +746,23 @@ class DashboardView(ttk.Frame):
     
     def suppress_alert(self, alert_id: str, rule_data: dict[str, Any]) -> None:
         """Create suppression rule and suppress alert."""
+        # Check if alert is from backend
+        is_backend_alert = alert_id in self._backend_alert_ids
+        
+        if is_backend_alert and self._backend_client:
+            # Update via backend API
+            try:
+                self._backend_client.suppress_alert(alert_id, True)
+                # Update UI
+                self.alerts_panel.update_alert_suppressed(alert_id, True)
+                if self.on_status:
+                    self.on_status(f"Alert {alert_id} suppressed via backend")
+            except Exception as e:
+                if self.on_status:
+                    self.on_status(f"Backend suppress error: {e}")
+            return
+        
+        # Local alert handling
         # This would create a suppression rule - simplified for now
         if self._storage:
             self._storage.set_suppressed(alert_id, True)
