@@ -63,11 +63,15 @@ class AlertsPanel(ttk.LabelFrame):
         # Configure tag colors for severity highlighting
         style = ttk.Style()
         
-        # Create treeview with RBA/MITRE/Source/Ack/Suppressed/Incident columns
-        columns = ("severity", "rba", "module", "title", "mitre", "time", "source", "acked", "suppressed", "incident")
+        # Create treeview with alert_id (hidden) + RBA/MITRE/Source/Ack/Suppressed/Incident columns
+        columns = ("alert_id", "severity", "rba", "module", "title", "mitre", "time", "source", "acked", "suppressed", "incident")
         self.tree = ttk.Treeview(self, columns=columns, show="headings", selectmode="browse")
 
         # Configure columns
+        # Hide alert_id column (internal use only)
+        self.tree.column("alert_id", width=0, stretch=False)
+        self.tree.heading("alert_id", text="")
+        
         self.tree.heading("severity", text="Severity")
         self.tree.heading("rba", text="RBA")
         self.tree.heading("module", text="Module")
@@ -145,16 +149,17 @@ class AlertsPanel(ttk.LabelFrame):
         
         if values and self.on_select:
             data = {
-                "severity": values[0] if len(values) > 0 else "",
-                "rba": values[1] if len(values) > 1 else "",
-                "module": values[2] if len(values) > 2 else "",
-                "title": values[3] if len(values) > 3 else "",
-                "mitre": values[4] if len(values) > 4 else "",
-                "time": values[5] if len(values) > 5 else "",
-                "source": values[6] if len(values) > 6 else "",
-                "acked": values[7] if len(values) > 7 else "",
-                "suppressed": values[8] if len(values) > 8 else "",
-                "incident": values[9] if len(values) > 9 else "",
+                "alert_id": values[0] if len(values) > 0 else "",  # alert_id is first column
+                "severity": values[1] if len(values) > 1 else "",
+                "rba": values[2] if len(values) > 2 else "",
+                "module": values[3] if len(values) > 3 else "",
+                "title": values[4] if len(values) > 4 else "",
+                "mitre": values[5] if len(values) > 5 else "",
+                "time": values[6] if len(values) > 6 else "",
+                "source": values[7] if len(values) > 7 else "",
+                "acked": values[8] if len(values) > 8 else "",
+                "suppressed": values[9] if len(values) > 9 else "",
+                "incident": values[10] if len(values) > 10 else "",
             }
             # Include the Finding/AlertEvent object if available for drill-down
             if 0 <= idx < len(self.findings_cache):
@@ -221,10 +226,12 @@ class AlertsPanel(ttk.LabelFrame):
             self.alert_events_cache[alert_id] = alert_event
         
         # Insert at the top for newest-first ordering
+        # Note: alert_id is first column (hidden), then visible columns
         item_id = self.tree.insert(
             "",
             0,  # Insert at top
             values=(
+                alert_id or "",  # alert_id column (hidden)
                 finding.severity.capitalize(),
                 rba_display,
                 module_name,
@@ -239,7 +246,7 @@ class AlertsPanel(ttk.LabelFrame):
             tags=(tag,),
         )
         
-        # Store alert_id in item for context menu
+        # Ensure alert_id is set (in case it was None in values)
         if alert_id:
             self.tree.set(item_id, "alert_id", alert_id)
         
@@ -305,9 +312,9 @@ class AlertsPanel(ttk.LabelFrame):
             values = item.get("values", [])
             alert_id = self.tree.set(selection[0], "alert_id")
             if alert_id and values:
-                # Extract module and title for suppression rule
-                module = values[2] if len(values) > 2 else ""
-                title = values[3] if len(values) > 3 else ""
+                # Extract module and title for suppression rule (alert_id is index 0)
+                module = values[3] if len(values) > 3 else ""  # module is index 3
+                title = values[4] if len(values) > 4 else ""  # title is index 4
                 self.on_suppress(alert_id, {"module": module, "title": title})
     
     def _on_view_incident(self) -> None:
@@ -316,7 +323,7 @@ class AlertsPanel(ttk.LabelFrame):
         if selection and self.on_view_incident:
             item = self.tree.item(selection[0])
             values = item.get("values", [])
-            incident_id = values[9] if len(values) > 9 else None
+            incident_id = values[10] if len(values) > 10 else None  # incident is index 10
             if incident_id and incident_id != "-":
                 # Extract full incident ID from alert_event if available
                 alert_id = self.tree.set(selection[0], "alert_id")
@@ -330,8 +337,8 @@ class AlertsPanel(ttk.LabelFrame):
         for item in self.tree.get_children():
             if self.tree.set(item, "alert_id") == alert_id:
                 values = list(self.tree.item(item)["values"])
-                if len(values) > 7:
-                    values[7] = "Y" if acked else "N"
+                if len(values) > 8:  # alert_id is index 0, acked is index 8
+                    values[8] = "Y" if acked else "N"
                     self.tree.item(item, values=values)
                 break
     
@@ -340,8 +347,8 @@ class AlertsPanel(ttk.LabelFrame):
         for item in self.tree.get_children():
             if self.tree.set(item, "alert_id") == alert_id:
                 values = list(self.tree.item(item)["values"])
-                if len(values) > 8:
-                    values[8] = "Y" if suppressed else "N"
+                if len(values) > 9:  # alert_id is index 0, suppressed is index 9
+                    values[9] = "Y" if suppressed else "N"
                     tags = list(self.tree.item(item)["tags"])
                     if suppressed and "suppressed" not in tags:
                         tags.append("suppressed")

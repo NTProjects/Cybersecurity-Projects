@@ -62,5 +62,29 @@
   },
   "incidents": {
     "group_window_seconds": 300
+  },
+  "backend": {
+    "enabled": false,
+    "host": "127.0.0.1",
+    "port": 8001,
+    "api_url": "http://127.0.0.1:8001",
+    "ws_url": "ws://127.0.0.1:8001/ws/stream",
+    "poll_interval_ms": 1000,
+    "api_key": "ADMIN_KEY",
+    "role": "analyst",
+    "auth": {
+      "enabled": false,
+      "keys": [
+        {"key": "ADMIN_KEY", "role": "admin"},
+        {"key": "ANALYST_KEY", "role": "analyst"}
+      ]
+    },
+    "storage": {
+      "sqlite_path": "data/soc_audit_server.db",
+      "json_path": "data/soc_audit_server_store.json"
+    },
+    "incidents": {
+      "group_window_seconds": 300
+    }
   }
 }
