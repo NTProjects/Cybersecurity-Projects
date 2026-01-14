@@ -116,6 +116,10 @@ class MainWindow:
         # Show dashboard by default and start metrics refresh
         self._show_view("dashboard")
         self.dashboard_view.start()
+        
+        # Phase 6.2: Wire role update callback and update UI
+        self.dashboard_view.on_role_update = self._update_role_based_ui
+        self._update_role_based_ui()
 
         # Bind window close to cleanup
         self.root.protocol("WM_DELETE_WINDOW", self._on_window_close)
@@ -486,6 +490,33 @@ class MainWindow:
         ttk.Button(button_frame, text="Save", command=save_auth).pack(side=tk.LEFT, padx=5)
         ttk.Button(button_frame, text="Clear", command=clear_auth).pack(side=tk.LEFT, padx=5)
         ttk.Button(button_frame, text="Cancel", command=dialog.destroy).pack(side=tk.LEFT, padx=5)
+    
+    def _update_role_based_ui(self) -> None:
+        """Update UI elements based on backend role (Phase 6.2)."""
+        backend_config = self.config.get("backend", {})
+        if not backend_config.get("enabled", False):
+            # Backend disabled - all actions available (local mode)
+            return
+        
+        backend_client = getattr(self.dashboard_view, "_backend_client", None)
+        if not backend_client:
+            return
+        
+        role = backend_client.backend_role
+        
+        # Phase 6.2: Gate incident actions based on role
+        if role == "admin":
+            # Admin: all actions enabled
+            self.incidents_menu.entryconfig("Close Incident", state=tk.NORMAL)
+            self.incidents_menu.entryconfig("Add Note...", state=tk.NORMAL)
+        elif role == "analyst":
+            # Analyst: can add notes, cannot close
+            self.incidents_menu.entryconfig("Close Incident", state=tk.DISABLED)
+            self.incidents_menu.entryconfig("Add Note...", state=tk.NORMAL)
+        else:
+            # Unauthenticated or unknown: disable admin actions
+            self.incidents_menu.entryconfig("Close Incident", state=tk.DISABLED)
+            self.incidents_menu.entryconfig("Add Note...", state=tk.DISABLED)
     
     # Phase 5.5: Alert actions
     def _on_ack_alert(self) -> None:
