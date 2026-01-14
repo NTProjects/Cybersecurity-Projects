@@ -64,11 +64,18 @@ class BackendClient:
         # Status tracking
         self.status = "disconnected"  # disconnected, polling, connected, error
         self.last_error: str | None = None
+        self.backend_role: str | None = None  # Phase 6.2: Role from backend
 
     def build_base_url(self) -> str:
         """Build the base API URL."""
         return self.api_url
 
+    def set_api_key(self, api_key: str | None) -> None:
+        """Update API key (Phase 6.2: for session-based auth)."""
+        self.api_key = api_key
+        # Reset role when key changes
+        self.backend_role = None
+    
     def _make_request(
         self, endpoint: str, method: str = "GET", data: dict[str, Any] | None = None
     ) -> dict[str, Any] | None:
@@ -99,7 +106,17 @@ class BackendClient:
             
             with request.urlopen(http_req, timeout=5) as response:
                 if response.status == 200:
+                    # Phase 6.2: Try to infer role from response headers or first successful request
+                    if self.api_key and not self.backend_role:
+                        # For MVP, we'll set role based on successful auth
+                        # In production, backend could return role in header
+                        # For now, default to analyst if key works
+                        self.backend_role = "analyst"  # Default, can be overridden
                     return json.loads(response.read().decode("utf-8"))
+                elif response.status == 401:
+                    self.last_error = "Authentication failed"
+                    self.backend_role = None
+                    return None
                 else:
                     self.last_error = f"HTTP {response.status}"
                     return None

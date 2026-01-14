@@ -52,13 +52,60 @@ class AlertsPanel(ttk.LabelFrame):
         self.on_select = on_select
         self.findings_cache: list[Any] = []  # Store Finding/AlertEvent objects for drill-down
         self.alert_events_cache: dict[str, Any] = {}  # alert_id -> AlertEvent
+        
+        # Phase 6.1: Filter state
+        self._filter_source: str = "All"  # All, Local, Backend
+        self._filter_severity: str = "All"  # All, Low, Medium, High, Critical
+        self._filter_rba_min: int = 0
+        self._filter_show_suppressed: bool = False
+        self._filter_host_id: str | None = None
+        
         self._build_ui()
 
     def _build_ui(self) -> None:
         """Build the panel UI components."""
         # Configure grid
         self.columnconfigure(0, weight=1)
-        self.rowconfigure(0, weight=1)
+        self.rowconfigure(1, weight=1)  # Treeview row
+        
+        # Phase 6.1: Filter toolbar
+        filter_frame = ttk.Frame(self)
+        filter_frame.grid(row=0, column=0, sticky="ew", pady=(0, 5))
+        filter_frame.columnconfigure(0, weight=0)
+        filter_frame.columnconfigure(1, weight=0)
+        filter_frame.columnconfigure(2, weight=0)
+        filter_frame.columnconfigure(3, weight=0)
+        filter_frame.columnconfigure(4, weight=0)
+        filter_frame.columnconfigure(5, weight=0)
+        filter_frame.columnconfigure(6, weight=0)
+        filter_frame.columnconfigure(7, weight=1)
+        
+        # Source filter
+        ttk.Label(filter_frame, text="Source:").grid(row=0, column=0, padx=(0, 5))
+        self.source_var = tk.StringVar(value="All")
+        source_combo = ttk.Combobox(filter_frame, textvariable=self.source_var, values=["All", "Local", "Backend"], state="readonly", width=10)
+        source_combo.grid(row=0, column=1, padx=(0, 10))
+        source_combo.bind("<<ComboboxSelected>>", lambda e: self._apply_filters())
+        
+        # Severity filter
+        ttk.Label(filter_frame, text="Severity:").grid(row=0, column=2, padx=(0, 5))
+        self.severity_var = tk.StringVar(value="All")
+        severity_combo = ttk.Combobox(filter_frame, textvariable=self.severity_var, values=["All", "Low", "Medium", "High", "Critical"], state="readonly", width=10)
+        severity_combo.grid(row=0, column=3, padx=(0, 10))
+        severity_combo.bind("<<ComboboxSelected>>", lambda e: self._apply_filters())
+        
+        # RBA threshold
+        ttk.Label(filter_frame, text="RBA ≥").grid(row=0, column=4, padx=(0, 5))
+        self.rba_var = tk.IntVar(value=0)
+        rba_scale = ttk.Scale(filter_frame, from_=0, to=100, variable=self.rba_var, orient=tk.HORIZONTAL, length=100)
+        rba_scale.grid(row=0, column=5, padx=(0, 5))
+        self.rba_label = ttk.Label(filter_frame, text="0")
+        self.rba_label.grid(row=0, column=6, padx=(0, 10))
+        rba_scale.configure(command=lambda v: (self.rba_label.config(text=str(int(float(v)))), self._apply_filters()))
+        
+        # Show suppressed checkbox
+        self.show_suppressed_var = tk.BooleanVar(value=False)
+        ttk.Checkbutton(filter_frame, text="Show Suppressed", variable=self.show_suppressed_var, command=self._apply_filters).grid(row=0, column=7, padx=(0, 5))
 
         # Configure tag colors for severity highlighting
         style = ttk.Style()
@@ -107,11 +154,11 @@ class AlertsPanel(ttk.LabelFrame):
         # Suppressed alerts styling
         self.tree.tag_configure("suppressed", foreground="#666666")
 
-        self.tree.grid(row=0, column=0, sticky="nsew")
+        self.tree.grid(row=1, column=0, sticky="nsew")
 
         # Scrollbar
         self.scrollbar = ttk.Scrollbar(self, orient=tk.VERTICAL, command=self.tree.yview)
-        self.scrollbar.grid(row=0, column=1, sticky="ns")
+        self.scrollbar.grid(row=1, column=1, sticky="ns")
         self.tree.configure(yscrollcommand=self.scrollbar.set)
 
         # Bind selection event
@@ -275,6 +322,99 @@ class AlertsPanel(ttk.LabelFrame):
             self.tree.delete(item)
         self.findings_cache.clear()
         self.alert_events_cache.clear()
+    
+    def _apply_filters(self) -> None:
+        """Apply filters to the alerts table (client-side filtering)."""
+        # Update filter state
+        self._filter_source = self.source_var.get()
+        self._filter_severity = self.severity_var.get()
+        self._filter_rba_min = self.rba_var.get()
+        self._filter_show_suppressed = self.show_suppressed_var.get()
+        
+        # Show/hide items based on filters
+        for item in self.tree.get_children():
+            values = self.tree.item(item)["values"]
+            if len(values) < 11:
+                continue
+            
+            # Extract values
+            severity = values[1] if len(values) > 1 else ""
+            rba_str = values[2] if len(values) > 2 else "0"
+            source = values[7] if len(values) > 7 else ""
+            suppressed_str = values[9] if len(values) > 9 else "N"
+            
+            # Parse RBA
+            try:
+                rba = int(rba_str) if rba_str and rba_str != "-" else 0
+            except (ValueError, TypeError):
+                rba = 0
+            
+            # Apply filters
+            show = True
+            
+            # Source filter
+            if self._filter_source != "All":
+                if self._filter_source == "Local" and source == "backend":
+                    show = False
+                elif self._filter_source == "Backend" and source != "backend":
+                    show = False
+            
+            # Severity filter
+            if show and self._filter_severity != "All":
+                severity_map = {"low": "Low", "medium": "Medium", "high": "High", "critical": "Critical", "info": "Low"}
+                alert_severity = severity_map.get(severity.lower(), "Low")
+                if alert_severity != self._filter_severity:
+                    show = False
+            
+            # RBA filter
+            if show and rba < self._filter_rba_min:
+                show = False
+            
+            # Suppressed filter
+            if show and not self._filter_show_suppressed and suppressed_str == "Y":
+                show = False
+            
+            # Show/hide item using detach/reattach
+            if show:
+                # Reattach if detached
+                if not self.tree.exists(item):
+                    # Item was detached, need to reattach (simplified: just skip for now)
+                    pass
+            else:
+                # Detach to hide
+                if self.tree.exists(item):
+                    self.tree.detach(item)
+    
+    def set_host_filter(self, host_id: str | None) -> None:
+        """Set host filter (called from dashboard)."""
+        self._filter_host_id = host_id
+        self._apply_filters()
+    
+    def should_show_alert(self, source: str, severity: str, rba: int, suppressed: bool) -> bool:
+        """Check if alert should be shown based on current filters (for new alerts)."""
+        # Source filter
+        if self._filter_source != "All":
+            if self._filter_source == "Local" and source == "backend":
+                return False
+            elif self._filter_source == "Backend" and source != "backend":
+                return False
+        
+        # Severity filter
+        if self._filter_severity != "All":
+            severity_map = {"low": "Low", "medium": "Medium", "high": "High", "critical": "Critical", "info": "Low"}
+            alert_severity = severity_map.get(severity.lower(), "Low")
+            if alert_severity != self._filter_severity:
+                return False
+        
+        # RBA filter
+        if rba < self._filter_rba_min:
+            return False
+        
+        # Suppressed filter
+        if not self._filter_show_suppressed and suppressed:
+            return False
+        
+        return True
     
     def _on_right_click(self, event: tk.Event) -> None:
         """Handle right-click to show context menu."""

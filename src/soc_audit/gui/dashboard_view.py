@@ -694,14 +694,23 @@ class DashboardView(ttk.Frame):
         if self.on_status:
             self.on_status(f"Backend: {message}")
         
+        # Phase 6.2: Include role in timeline message if available
+        role_info = ""
+        if self._backend_client and self._backend_client.backend_role:
+            role_info = f" (Role: {self._backend_client.backend_role.capitalize()})"
+        
         # Add to timeline (use append_event with a simple Finding-like object)
         from soc_audit.core.interfaces import Finding
         finding = Finding(
-            title=f"Backend {status}",
+            title=f"Backend {status}{role_info}",
             description=message,
             severity="info" if status in ("connected", "polling") else "warning",
         )
         self.timeline_panel.append_event(finding, "backend", datetime.utcnow())
+        
+        # Phase 6.2: Update role-based UI in main window if available
+        if self.on_role_update:
+            self.on_role_update()
     
     # ==================== Phase 5.5: SOC Workflow Actions ====================
     

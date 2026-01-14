@@ -212,6 +212,19 @@ class MainWindow:
         menu_bar.add_cascade(label="Incidents", menu=self.incidents_menu)
         self.incidents_menu.add_command(label="Close Incident", command=self._on_close_incident)
         self.incidents_menu.add_command(label="Add Note...", command=self._on_add_incident_note)
+        
+        # Phase 6.2: Store menu items for role-based enabling/disabling
+        self._incident_close_item = self.incidents_menu.index("Close Incident")
+        self._incident_note_item = self.incidents_menu.index("Add Note...")
+        
+        # Phase 6.2: Backend menu
+        self.backend_menu = tk.Menu(
+            menu_bar, tearoff=0, bg=menu_bg, fg=menu_fg,
+            activebackground=menu_active_bg, activeforeground="#000000",
+            disabledforeground=menu_disabled_fg
+        )
+        menu_bar.add_cascade(label="Backend", menu=self.backend_menu)
+        self.backend_menu.add_command(label="Authentication...", command=self._on_backend_auth)
 
         # Help menu
         help_menu = tk.Menu(
@@ -238,6 +251,10 @@ class MainWindow:
             refresh_ms=1000,
             config=self.config,
         )
+        # Phase 6.2: Wire role update callback
+        if hasattr(self.dashboard_view, "_backend_client"):
+            # Callback will be set after backend client is initialized
+            pass
 
         # Scanner view with fixed layout (no resizable divider - eliminates jitter)
         self.scanner_container = ttk.Frame(self.content_frame)
@@ -381,6 +398,12 @@ class MainWindow:
                 f"Poll Interval: {backend_config.get('poll_interval_seconds', 5.0)}s\n"
             )
             
+            # Phase 6.2: Show role
+            if backend_client.backend_role:
+                status_msg += f"Role: {backend_client.backend_role.capitalize()}\n"
+            else:
+                status_msg += "Role: Unauthenticated\n"
+            
             if backend_client.last_error:
                 status_msg += f"\nLast Error: {backend_client.last_error}"
             
@@ -391,6 +414,78 @@ class MainWindow:
                 "Backend client not initialized.\n\n"
                 "Check configuration and restart the application."
             )
+    
+    def _on_backend_auth(self) -> None:
+        """Handle Backend > Authentication menu action (Phase 6.2)."""
+        backend_config = self.config.get("backend", {})
+        enabled = backend_config.get("enabled", False)
+        
+        if not enabled:
+            messagebox.showinfo(
+                "Backend Authentication",
+                "Backend mode is disabled.\n\n"
+                "Enable backend in config to use authentication."
+            )
+            return
+        
+        # Create auth dialog
+        dialog = tk.Toplevel(self.root)
+        dialog.title("Backend Authentication")
+        dialog.geometry("400x200")
+        dialog.resizable(False, False)
+        dialog.transient(self.root)
+        dialog.grab_set()
+        
+        # Center dialog
+        dialog.update_idletasks()
+        x = self.root.winfo_x() + (self.root.winfo_width() - 400) // 2
+        y = self.root.winfo_y() + (self.root.winfo_height() - 200) // 2
+        dialog.geometry(f"+{x}+{y}")
+        
+        # API Key input
+        ttk.Label(dialog, text="API Key:").grid(row=0, column=0, padx=10, pady=10, sticky="w")
+        api_key_var = tk.StringVar()
+        api_key_entry = ttk.Entry(dialog, textvariable=api_key_var, show="*", width=40)
+        api_key_entry.grid(row=0, column=1, padx=10, pady=10, sticky="ew")
+        dialog.columnconfigure(1, weight=1)
+        
+        # Pre-fill if backend client has key
+        backend_client = getattr(self.dashboard_view, "_backend_client", None)
+        if backend_client and backend_client.api_key:
+            api_key_var.set(backend_client.api_key)
+        
+        # Remember checkbox (session only, not saved to disk)
+        remember_var = tk.BooleanVar(value=True)
+        ttk.Checkbutton(dialog, text="Remember for this session", variable=remember_var).grid(row=1, column=0, columnspan=2, padx=10, pady=5, sticky="w")
+        
+        # Buttons
+        button_frame = ttk.Frame(dialog)
+        button_frame.grid(row=2, column=0, columnspan=2, pady=20)
+        
+        def save_auth():
+            api_key = api_key_var.get().strip()
+            if not api_key:
+                messagebox.showwarning("Invalid Key", "Please enter an API key.")
+                return
+            
+            # Update backend client
+            if backend_client:
+                backend_client.set_api_key(api_key)
+                messagebox.showinfo("Authentication", "API key updated for this session.")
+            else:
+                messagebox.showerror("Error", "Backend client not available.")
+            
+            dialog.destroy()
+        
+        def clear_auth():
+            if backend_client:
+                backend_client.set_api_key(None)
+                messagebox.showinfo("Authentication", "API key cleared.")
+            dialog.destroy()
+        
+        ttk.Button(button_frame, text="Save", command=save_auth).pack(side=tk.LEFT, padx=5)
+        ttk.Button(button_frame, text="Clear", command=clear_auth).pack(side=tk.LEFT, padx=5)
+        ttk.Button(button_frame, text="Cancel", command=dialog.destroy).pack(side=tk.LEFT, padx=5)
     
     # Phase 5.5: Alert actions
     def _on_ack_alert(self) -> None:
