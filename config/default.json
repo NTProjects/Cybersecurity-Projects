@@ -52,5 +52,15 @@
       "low": 15,
       "info": 5
     }
+  },
+  "persistence": {
+    "enabled": true,
+    "backend": "sqlite",
+    "sqlite_path": "data/soc_audit.db",
+    "json_path": "data/soc_audit_store.json",
+    "suppressions_path": "config/suppressions.json"
+  },
+  "incidents": {
+    "group_window_seconds": 300
   }
 }

@@ -125,18 +125,35 @@ class DetailsPanel(ttk.LabelFrame):
         if alert_data.get("time"):
             self.text.insert(tk.END, "Time:        ", "label")
             self.text.insert(tk.END, f"{alert_data['time']}\n", "value")
+        
+        # Phase 5.5: Ack and Suppressed status
+        if alert_data.get("acked"):
+            acked_val = alert_data["acked"]
+            self.text.insert(tk.END, "Acknowledged: ", "label")
+            self.text.insert(tk.END, f"{acked_val}\n", "value" if acked_val == "Y" else "label")
+        
+        if alert_data.get("suppressed"):
+            suppressed_val = alert_data["suppressed"]
+            self.text.insert(tk.END, "Suppressed:   ", "label")
+            self.text.insert(tk.END, f"{suppressed_val}\n", "value" if suppressed_val == "Y" else "label")
+        
+        if alert_data.get("incident"):
+            incident_val = alert_data["incident"]
+            if incident_val and incident_val != "-":
+                self.text.insert(tk.END, "Incident:    ", "label")
+                self.text.insert(tk.END, f"{incident_val}\n", "value")
 
         # Check if we have the full Finding object for drill-down
         finding = alert_data.get("finding")
         if finding:
-            self._show_finding_details(finding)
+            self._show_finding_details(finding, alert_data)
         else:
             self.text.insert(tk.END, "\n" + "─" * 42 + "\n", "separator")
             self.text.insert(tk.END, "Full details available after scan\n", "label")
 
         self.text.config(state=tk.DISABLED)
 
-    def _show_finding_details(self, finding: Finding) -> None:
+    def _show_finding_details(self, finding: Finding, alert_data: dict[str, Any] | None = None) -> None:
         """
         Display full finding details including evidence and recommendation.
 
@@ -205,6 +222,14 @@ class DetailsPanel(ttk.LabelFrame):
                 self.text.insert(tk.END, "Technique IDs: ", "label")
                 self.text.insert(tk.END, f"{', '.join(mitre_ids)}\n", "value")
 
+        # Phase 5.5: Incident link (if available)
+        if alert_data:
+            incident_id = alert_data.get("incident")
+            if incident_id and incident_id != "-":
+                self.text.insert(tk.END, "\n")
+                self.text.insert(tk.END, "Incident ID: ", "label")
+                self.text.insert(tk.END, f"{incident_id}\n", "value")
+        
         # Compliance (if present)
         if finding.control_ids:
             self.text.insert(tk.END, "Control IDs: ", "label")

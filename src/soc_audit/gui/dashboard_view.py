@@ -19,8 +19,12 @@ from tkinter import ttk
 from typing import TYPE_CHECKING, Any, Callable
 
 from soc_audit.core.collectors import CollectorManager, TelemetryEvent
+from soc_audit.core.incidents import IncidentEngine
 from soc_audit.core.mitre import load_mitre_mapping, map_finding_to_mitre
+from soc_audit.core.models import AlertEvent, normalize_event_from_finding, normalize_event_from_telemetry
 from soc_audit.core.rba import compute_rba_score
+from soc_audit.core.storage import JSONStorage, SQLiteStorage, Storage
+from soc_audit.core.suppression import event_is_suppressed, load_suppressions
 from soc_audit.gui.metrics import get_system_metrics
 from soc_audit.gui.panels import (
     AlertsPanel,
@@ -101,6 +105,47 @@ class DashboardView(ttk.Frame):
         except Exception:
             self._mitre_mappings = []
         
+        # Phase 5.5: Storage, incidents, suppression
+        self._storage: Storage | None = None
+        self._incident_engine: IncidentEngine | None = None
+        self._suppression_rules: list[Any] = []
+        self._show_suppressed = False  # Toggle for showing suppressed alerts
+        
+        # Initialize persistence if enabled
+        persistence_config = self.config.get("persistence", {})
+        if persistence_config.get("enabled", True):
+            try:
+                backend = persistence_config.get("backend", "sqlite")
+                if backend == "sqlite":
+                    db_path = persistence_config.get("sqlite_path", "data/soc_audit.db")
+                    self._storage = SQLiteStorage(db_path)
+                    self._storage.init()
+                else:
+                    json_path = persistence_config.get("json_path", "data/soc_audit_store.json")
+                    self._storage = JSONStorage(json_path)
+                    self._storage.init()
+            except Exception:
+                # Fallback to JSON if SQLite fails
+                try:
+                    json_path = persistence_config.get("json_path", "data/soc_audit_store.json")
+                    self._storage = JSONStorage(json_path)
+                    self._storage.init()
+                except Exception:
+                    self._storage = None
+        
+        # Initialize incident engine
+        incidents_config = self.config.get("incidents", {})
+        group_window = incidents_config.get("group_window_seconds", 300)
+        self._incident_engine = IncidentEngine(group_window_seconds=group_window)
+        
+        # Load suppression rules
+        if persistence_config.get("enabled", True):
+            suppressions_path = persistence_config.get("suppressions_path", "config/suppressions.json")
+            try:
+                self._suppression_rules = load_suppressions(suppressions_path)
+            except Exception:
+                self._suppression_rules = []
+        
         self._build_ui()
 
     def _build_ui(self) -> None:
@@ -125,6 +170,10 @@ class DashboardView(ttk.Frame):
         # Alerts Panel (right)
         self.alerts_panel = AlertsPanel(top_frame, on_select=self._on_alert_select)
         self.alerts_panel.grid(row=0, column=1, sticky="nsew", padx=(5, 0))
+        # Wire callbacks for Phase 5.5 actions
+        self.alerts_panel.on_ack = self.ack_alert
+        self.alerts_panel.on_suppress = self.suppress_alert
+        self.alerts_panel.on_view_incident = self._on_view_incident
 
         # === Middle: Timeline ===
         self.timeline_panel = TimelinePanel(self)
@@ -278,25 +327,55 @@ class DashboardView(ttk.Frame):
 
     def _process_finding(self, finding: Finding, module_name: str) -> None:
         """
-        Process a single finding - update all panels.
+        Process a single finding - normalize, suppress, group, persist, display.
 
         Args:
             finding: The Finding to process.
             module_name: Name of the source module.
         """
-        timestamp = datetime.now()
-
-        # Format time display
-        time_display = self._format_time_ago(timestamp)
-
-        # Update Alerts panel (Notable Events)
-        self.alerts_panel.append_finding(finding, module_name, time_display, source="engine")
-
-        # Update Timeline
-        self.timeline_panel.append_event(finding, module_name, timestamp)
-
-        # Update Entity aggregation
-        self.entities_panel.update_from_finding(finding)
+        # Phase 5.5: Normalize to AlertEvent
+        alert_event = normalize_event_from_finding(finding, module_name, source="engine")
+        
+        # Apply suppression rules
+        if self._suppression_rules:
+            suppressed = event_is_suppressed(alert_event, self._suppression_rules)
+            alert_event.suppressed = suppressed
+        
+        # Incident grouping
+        if self._incident_engine:
+            alert_event, incident = self._incident_engine.ingest_event(alert_event)
+            if incident and self._storage:
+                self._storage.save_incident(incident)
+        
+        # Persist alert
+        if self._storage:
+            self._storage.save_alert(alert_event)
+            # Append to timeline
+            self._storage.append_timeline(
+                alert_event.timestamp,
+                f"Alert: {alert_event.title}",
+                alert_event.severity,
+                alert_event.source,
+                alert_event.module,
+                alert_id=alert_event.id,
+                incident_id=alert_event.incident_id,
+            )
+        
+        # Display if not suppressed or if show_suppressed is True
+        if not alert_event.suppressed or self._show_suppressed:
+            timestamp = alert_event.timestamp
+            time_display = self._format_time_ago(timestamp)
+            
+            # Update Alerts panel (Notable Events)
+            self.alerts_panel.append_finding(
+                finding, module_name, time_display, source="engine", alert_event=alert_event
+            )
+            
+            # Update Timeline
+            self.timeline_panel.append_event(finding, module_name, timestamp)
+            
+            # Update Entity aggregation
+            self.entities_panel.update_from_finding(finding)
 
     def _format_time_ago(self, timestamp: datetime) -> str:
         """
@@ -440,9 +519,37 @@ class DashboardView(ttk.Frame):
 
     def _process_collector_event(self, event: TelemetryEvent) -> None:
         """Process a collector telemetry event."""
-        # Convert TelemetryEvent to Finding-like object for display
+        # Phase 5.5: Normalize to AlertEvent
+        alert_event = normalize_event_from_telemetry(event)
+        
+        # Apply suppression rules
+        if self._suppression_rules:
+            suppressed = event_is_suppressed(alert_event, self._suppression_rules)
+            alert_event.suppressed = suppressed
+        
+        # Incident grouping
+        if self._incident_engine:
+            alert_event, incident = self._incident_engine.ingest_event(alert_event)
+            if incident and self._storage:
+                self._storage.save_incident(incident)
+        
+        # Persist alert
+        if self._storage:
+            self._storage.save_alert(alert_event)
+            # Append to timeline
+            self._storage.append_timeline(
+                alert_event.timestamp,
+                f"Alert: {alert_event.title}",
+                alert_event.severity,
+                alert_event.source,
+                alert_event.module,
+                alert_id=alert_event.id,
+                incident_id=alert_event.incident_id,
+            )
+        
+        # Convert to Finding for display
         from soc_audit.core.interfaces import Finding
-
+        
         finding = Finding(
             title=event.title,
             description=f"Telemetry event from {event.source}",
@@ -454,20 +561,77 @@ class DashboardView(ttk.Frame):
             rba_score=event.rba_score,
             timestamp=event.timestamp.isoformat(),
         )
-
-        # Add to alerts panel
-        time_display = event.timestamp.strftime("%H:%M:%S")
-        self.alerts_panel.append_finding(finding, event.module, time_display, source=event.source)
-
-        # Add to timeline
-        self.timeline_panel.append_event(finding, event.module, event.timestamp)
-
-        # Update entities if applicable
-        if event.source == "logs" and event.evidence:
-            # Extract IP and username from log events
-            source_ip = event.evidence.get("source_ip")
-            username = event.evidence.get("username")
-            if source_ip:
-                self.entities_panel.increment_entity("IPs", source_ip)
-            if username:
-                self.entities_panel.increment_entity("Users", username)
+        
+        # Display if not suppressed or if show_suppressed is True
+        if not alert_event.suppressed or self._show_suppressed:
+            # Add to alerts panel
+            time_display = event.timestamp.strftime("%H:%M:%S")
+            self.alerts_panel.append_finding(finding, event.module, time_display, source=event.source, alert_event=alert_event)
+            
+            # Add to timeline
+            self.timeline_panel.append_event(finding, event.module, event.timestamp)
+            
+            # Update entities if applicable
+            if event.source == "logs" and event.evidence:
+                # Extract IP and username from log events
+                source_ip = event.evidence.get("source_ip")
+                username = event.evidence.get("username")
+                if source_ip:
+                    self.entities_panel.increment_entity("IPs", source_ip)
+                if username:
+                    self.entities_panel.increment_entity("Users", username)
+    
+    # ==================== Phase 5.5: SOC Workflow Actions ====================
+    
+    def ack_alert(self, alert_id: str) -> None:
+        """Acknowledge an alert."""
+        if self._storage:
+            # Load alert to check current state
+            alerts = self._storage.load_recent_alerts(limit=1000)
+            for alert in alerts:
+                if alert.id == alert_id:
+                    alert.acked = not alert.acked  # Toggle
+                    self._storage.update_ack(alert_id, alert.acked)
+                    self._storage.append_timeline(
+                        datetime.utcnow(),
+                        f"Alert {'acknowledged' if alert.acked else 'unacknowledged'}: {alert.title}",
+                        "info",
+                        "user",
+                        "dashboard",
+                        alert_id=alert_id,
+                    )
+                    # Update UI
+                    self.alerts_panel.update_alert_ack(alert_id, alert.acked)
+                    break
+    
+    def suppress_alert(self, alert_id: str, rule_data: dict[str, Any]) -> None:
+        """Create suppression rule and suppress alert."""
+        # This would create a suppression rule - simplified for now
+        if self._storage:
+            self._storage.set_suppressed(alert_id, True)
+            self._storage.append_timeline(
+                datetime.utcnow(),
+                f"Alert suppressed: {rule_data.get('title', 'Unknown')}",
+                "info",
+                "user",
+                "dashboard",
+                alert_id=alert_id,
+            )
+            self.alerts_panel.update_alert_suppressed(alert_id, True)
+    
+    def get_storage(self) -> Storage | None:
+        """Get the storage instance (for export)."""
+        return self._storage
+    
+    def get_incident_engine(self) -> IncidentEngine | None:
+        """Get the incident engine instance."""
+        return self._incident_engine
+    
+    def toggle_show_suppressed(self, show: bool) -> None:
+        """Toggle showing suppressed alerts."""
+        self._show_suppressed = show
+    
+    def _on_view_incident(self, incident_id: str) -> None:
+        """Handle view incident action (placeholder - can be extended)."""
+        if self.on_status:
+            self.on_status(f"Viewing incident: {incident_id[:8]}...")

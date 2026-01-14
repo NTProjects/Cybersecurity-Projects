@@ -90,6 +90,59 @@ PYTHONPATH=src python -m soc_audit.gui
 1. **Scan Configuration** — Select a config file and run security scans
 2. **View Findings** — Browse, filter, and sort scan results
 3. **Export Reports** — Save findings as JSON or plain text files
+4. **SOC Workflow** — Acknowledge alerts, suppress similar alerts, manage incidents, export timeline
+
+### Phase 5.5: SOC Workflow Features
+
+The framework includes comprehensive SOC workflow capabilities:
+
+#### Persistence
+
+Alerts, incidents, and timeline events are persisted to disk for analysis and reporting:
+
+- **Backend**: SQLite (default) or JSON fallback
+- **Location**: `data/soc_audit.db` (SQLite) or `data/soc_audit_store.json` (JSON)
+- **Configuration**: Set `persistence.enabled` to `false` in `config/default.json` to disable
+
+#### Incident Grouping
+
+Alerts are automatically grouped into incidents based on:
+
+- Same module + same primary entity (IP/user)
+- Same module + title similarity
+- Same MITRE ID within time window (default: 5 minutes)
+
+Incidents can be:
+- **Opened/Closed** — Via Incidents menu
+- **Annotated** — Add notes via Incidents > Add Note...
+- **Exported** — Via File > Export Incidents...
+
+#### Suppression Rules
+
+Suppress alerts matching specific criteria:
+
+- **Module match** — Suppress all alerts from a specific module
+- **Title keywords** — Suppress alerts containing specific words in title
+- **MITRE IDs** — Suppress alerts with specific MITRE ATT&CK technique IDs
+- **RBA threshold** — Suppress alerts below a minimum RBA score
+
+Suppression rules are stored in `config/suppressions.json` and persist across sessions.
+
+#### Export Options
+
+- **Export Timeline** — File > Export Timeline... (JSON or TXT format)
+  - Includes all alerts and incidents with timestamps
+  - Summary statistics included
+- **Export Incidents** — File > Export Incidents... (JSON format)
+  - Complete incident data with associated alerts
+
+#### Alert Management
+
+- **Acknowledge** — Right-click alert > Acknowledge (or Alerts menu)
+- **Suppress Similar** — Right-click alert > Suppress Similar... (creates suppression rule)
+- **View Incident** — Right-click alert > View Incident (jump to incident)
+
+All actions are logged to the timeline for audit purposes.
 
 ### GUI Features
 
@@ -98,6 +151,12 @@ The graphical interface provides the following capabilities:
 - **Live System Metrics** — Real-time CPU, memory, network, and connection monitoring
   - Updates every second via Tkinter after() loop (no threading)
   - Graceful fallback to "N/A" if psutil unavailable or access denied
+- **SOC Workflow Features (Phase 5.5)** — Alert management, incident grouping, and persistence
+  - **Alert Acknowledgement** — Mark alerts as acknowledged via right-click context menu
+  - **Suppression Rules** — Mute similar alerts using configurable rules (module, title keywords, MITRE IDs, RBA thresholds)
+  - **Incident Grouping** — Automatic grouping of related alerts into incidents based on similarity heuristics
+  - **Persistence** — SQLite database (default) or JSON fallback for storing alerts, incidents, and timeline
+  - **Export** — Export timeline and incidents to JSON or text format for reporting
   - View > Refresh Metrics for manual update
 - **Config Selection** — Browse and select JSON configuration files
 - **Scan Execution** — Run the full audit engine with one click

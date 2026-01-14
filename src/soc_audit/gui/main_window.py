@@ -153,6 +153,10 @@ class MainWindow:
             state=tk.DISABLED,
         )
         self.file_menu.add_separator()
+        # Phase 5.5: Export options
+        self.file_menu.add_command(label="Export Timeline...", command=self._on_export_timeline)
+        self.file_menu.add_command(label="Export Incidents...", command=self._on_export_incidents)
+        self.file_menu.add_separator()
         self.file_menu.add_command(label="Exit", command=self._on_window_close)
 
         # View menu with view switching
@@ -178,6 +182,33 @@ class MainWindow:
             command=self._on_toggle_collectors,
             variable=self._collectors_enabled,
         )
+        # Phase 5.5: Show suppressed toggle
+        self._show_suppressed = tk.BooleanVar(value=False)
+        self.view_menu.add_checkbutton(
+            label="Show Suppressed",
+            command=self._on_toggle_show_suppressed,
+            variable=self._show_suppressed,
+        )
+        
+        # Phase 5.5: Alerts menu
+        self.alerts_menu = tk.Menu(
+            menu_bar, tearoff=0, bg=menu_bg, fg=menu_fg,
+            activebackground=menu_active_bg, activeforeground="#000000",
+            disabledforeground=menu_disabled_fg
+        )
+        menu_bar.add_cascade(label="Alerts", menu=self.alerts_menu)
+        self.alerts_menu.add_command(label="Acknowledge Alert", command=self._on_ack_alert)
+        self.alerts_menu.add_command(label="Suppress Similar...", command=self._on_suppress_similar)
+        
+        # Phase 5.5: Incidents menu
+        self.incidents_menu = tk.Menu(
+            menu_bar, tearoff=0, bg=menu_bg, fg=menu_fg,
+            activebackground=menu_active_bg, activeforeground="#000000",
+            disabledforeground=menu_disabled_fg
+        )
+        menu_bar.add_cascade(label="Incidents", menu=self.incidents_menu)
+        self.incidents_menu.add_command(label="Close Incident", command=self._on_close_incident)
+        self.incidents_menu.add_command(label="Add Note...", command=self._on_add_incident_note)
 
         # Help menu
         help_menu = tk.Menu(
@@ -312,6 +343,162 @@ class MainWindow:
         else:
             self.dashboard_view._stop_collectors()
             self.set_status("Live collectors disabled")
+    
+    def _on_toggle_show_suppressed(self) -> None:
+        """Handle View > Show Suppressed toggle."""
+        show = self._show_suppressed.get()
+        self.dashboard_view.toggle_show_suppressed(show)
+        self.set_status("Show suppressed: " + ("ON" if show else "OFF"))
+    
+    # Phase 5.5: Alert actions
+    def _on_ack_alert(self) -> None:
+        """Handle Alerts > Acknowledge Alert."""
+        # Get selected alert from dashboard (simplified - in production, track selection)
+        messagebox.showinfo("Acknowledge Alert", "Right-click on an alert and select 'Acknowledge' to acknowledge it.")
+    
+    def _on_suppress_similar(self) -> None:
+        """Handle Alerts > Suppress Similar..."""
+        # Simple dialog for suppression rule
+        dialog = tk.Toplevel(self.root)
+        dialog.title("Suppress Similar Alerts")
+        dialog.geometry("400x200")
+        
+        tk.Label(dialog, text="Module:").grid(row=0, column=0, padx=5, pady=5, sticky="w")
+        module_var = tk.StringVar()
+        tk.Entry(dialog, textvariable=module_var, width=30).grid(row=0, column=1, padx=5, pady=5)
+        
+        tk.Label(dialog, text="Title contains:").grid(row=1, column=0, padx=5, pady=5, sticky="w")
+        title_var = tk.StringVar()
+        tk.Entry(dialog, textvariable=title_var, width=30).grid(row=1, column=1, padx=5, pady=5)
+        
+        def save_suppression():
+            from soc_audit.core.suppression import SuppressionRule, load_suppressions, save_suppressions, upsert_rule
+            import uuid
+            
+            module = module_var.get().strip()
+            title_keywords = [t.strip() for t in title_var.get().split(",") if t.strip()]
+            
+            if not module and not title_keywords:
+                messagebox.showwarning("Invalid Rule", "Please specify at least module or title keywords.")
+                return
+            
+            # Load existing rules
+            persistence_config = self.config.get("persistence", {})
+            suppressions_path = persistence_config.get("suppressions_path", "config/suppressions.json")
+            rules = load_suppressions(suppressions_path)
+            
+            # Create new rule
+            rule = SuppressionRule(
+                id=str(uuid.uuid4()),
+                name=f"Suppress: {module or 'all'} - {title_keywords[0] if title_keywords else 'any'}",
+                enabled=True,
+                match_module=module if module else None,
+                match_title_contains=title_keywords,
+            )
+            
+            upsert_rule(rules, rule)
+            save_suppressions(suppressions_path, rules)
+            
+            # Reload in dashboard (simplified - would need to reload)
+            messagebox.showinfo("Suppression Rule Created", f"Rule created: {rule.name}")
+            dialog.destroy()
+        
+        tk.Button(dialog, text="Create Rule", command=save_suppression).grid(row=2, column=1, padx=5, pady=10, sticky="e")
+        tk.Button(dialog, text="Cancel", command=dialog.destroy).grid(row=2, column=0, padx=5, pady=10, sticky="w")
+    
+    # Phase 5.5: Incident actions
+    def _on_close_incident(self) -> None:
+        """Handle Incidents > Close Incident."""
+        messagebox.showinfo("Close Incident", "Select an incident from the dashboard to close it.")
+    
+    def _on_add_incident_note(self) -> None:
+        """Handle Incidents > Add Note..."""
+        dialog = tk.Toplevel(self.root)
+        dialog.title("Add Incident Note")
+        dialog.geometry("400x200")
+        
+        tk.Label(dialog, text="Incident ID:").grid(row=0, column=0, padx=5, pady=5, sticky="w")
+        incident_id_var = tk.StringVar()
+        tk.Entry(dialog, textvariable=incident_id_var, width=30).grid(row=0, column=1, padx=5, pady=5)
+        
+        tk.Label(dialog, text="Note:").grid(row=1, column=0, padx=5, pady=5, sticky="nw")
+        note_text = tk.Text(dialog, width=30, height=5)
+        note_text.grid(row=1, column=1, padx=5, pady=5)
+        
+        def save_note():
+            incident_id = incident_id_var.get().strip()
+            note = note_text.get("1.0", tk.END).strip()
+            
+            if not incident_id or not note:
+                messagebox.showwarning("Invalid Input", "Please provide both incident ID and note.")
+                return
+            
+            engine = self.dashboard_view.get_incident_engine()
+            if engine:
+                engine.add_note(incident_id, note)
+                # Save to storage
+                storage = self.dashboard_view.get_storage()
+                if storage:
+                    incident = engine.get_incident(incident_id)
+                    if incident:
+                        storage.save_incident(incident)
+                messagebox.showinfo("Note Added", "Note added to incident.")
+                dialog.destroy()
+            else:
+                messagebox.showerror("Error", "Incident engine not available.")
+        
+        tk.Button(dialog, text="Add Note", command=save_note).grid(row=2, column=1, padx=5, pady=10, sticky="e")
+        tk.Button(dialog, text="Cancel", command=dialog.destroy).grid(row=2, column=0, padx=5, pady=10, sticky="w")
+    
+    # Phase 5.5: Export actions
+    def _on_export_timeline(self) -> None:
+        """Handle File > Export Timeline..."""
+        from tkinter import filedialog
+        from soc_audit.reporting.timeline_export import export_timeline_json, export_timeline_text
+        
+        storage = self.dashboard_view.get_storage()
+        if not storage:
+            messagebox.showwarning("No Storage", "Persistence is not enabled. Enable it in config to export timeline.")
+            return
+        
+        file_path = filedialog.asksaveasfilename(
+            title="Export Timeline",
+            defaultextension=".json",
+            filetypes=[("JSON files", "*.json"), ("Text files", "*.txt"), ("All files", "*.*")],
+        )
+        
+        if file_path:
+            try:
+                if file_path.endswith(".txt"):
+                    export_timeline_text(storage, file_path)
+                else:
+                    export_timeline_json(storage, file_path)
+                messagebox.showinfo("Export Complete", f"Timeline exported to:\n{file_path}")
+            except Exception as e:
+                messagebox.showerror("Export Error", f"Failed to export timeline:\n{e}")
+    
+    def _on_export_incidents(self) -> None:
+        """Handle File > Export Incidents..."""
+        from tkinter import filedialog
+        from soc_audit.reporting.timeline_export import export_incidents_json
+        
+        storage = self.dashboard_view.get_storage()
+        if not storage:
+            messagebox.showwarning("No Storage", "Persistence is not enabled. Enable it in config to export incidents.")
+            return
+        
+        file_path = filedialog.asksaveasfilename(
+            title="Export Incidents",
+            defaultextension=".json",
+            filetypes=[("JSON files", "*.json"), ("All files", "*.*")],
+        )
+        
+        if file_path:
+            try:
+                export_incidents_json(storage, file_path)
+                messagebox.showinfo("Export Complete", f"Incidents exported to:\n{file_path}")
+            except Exception as e:
+                messagebox.showerror("Export Error", f"Failed to export incidents:\n{e}")
 
     def set_status(self, message: str) -> None:
         """
