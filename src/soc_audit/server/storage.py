@@ -100,6 +100,21 @@ class BackendStorage(ABC):
         """Get host details by ID."""
         pass
 
+    @abstractmethod
+    def get_host_status(self, host_id: str, heartbeat_interval: int = 10) -> str:
+        """
+        Get host status (ONLINE or OFFLINE).
+        
+        Args:
+            host_id: Host identifier.
+            heartbeat_interval: Heartbeat interval in seconds (default 10).
+                               Host is OFFLINE if last_seen_ts > 2 × heartbeat_interval ago.
+        
+        Returns:
+            "ONLINE" or "OFFLINE".
+        """
+        pass
+
 
 class SQLiteBackendStorage(BackendStorage):
     """SQLite backend storage with multi-host support."""
@@ -662,3 +677,36 @@ class SQLiteBackendStorage(BackendStorage):
         new_notes = f"{existing_notes}\n[{datetime.utcnow().isoformat()}] {note}".strip()
 
         self.update_incident_status(incident_id, notes=new_notes)
+
+    def get_host_status(self, host_id: str, heartbeat_interval: int = 10) -> str:
+        """
+        Get host status (ONLINE or OFFLINE).
+        
+        Phase 8.1: Status logic - ONLINE if now - last_seen_ts <= 2 × heartbeat_interval.
+        
+        Args:
+            host_id: Host identifier.
+            heartbeat_interval: Heartbeat interval in seconds (default 10).
+        
+        Returns:
+            "ONLINE" or "OFFLINE".
+        """
+        host = self.get_host(host_id)
+        if not host:
+            return "OFFLINE"
+        
+        # Parse last_seen_ts
+        try:
+            last_seen_dt = datetime.fromisoformat(host["last_seen_ts"].replace("Z", "+00:00"))
+        except Exception:
+            return "OFFLINE"
+        
+        # Calculate time since last heartbeat
+        now = datetime.utcnow()
+        if last_seen_dt.tzinfo:
+            now = now.replace(tzinfo=last_seen_dt.tzinfo)
+        
+        time_since_last = (now - last_seen_dt).total_seconds()
+        threshold = 2 * heartbeat_interval
+        
+        return "ONLINE" if time_since_last <= threshold else "OFFLINE"

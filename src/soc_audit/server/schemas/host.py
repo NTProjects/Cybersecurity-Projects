@@ -53,3 +53,6 @@ class HeartbeatResponse(BaseModel):
     """Response schema for heartbeat endpoint."""
 
     ok: bool
+    host_id: str
+    server_time: str  # ISO format datetime string
+    last_seen_ts: str  # ISO format datetime string

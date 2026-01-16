@@ -96,6 +96,8 @@
     "server_url": "http://127.0.0.1:8001",
     "api_key": "AGENT_KEY",
     "heartbeat_interval": 10,
-    "batch_interval": 5
+    "batch_interval": 5,
+    "retry_initial_seconds": 1,
+    "retry_max_seconds": 30
   }
 }

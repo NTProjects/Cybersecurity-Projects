@@ -33,6 +33,10 @@ app.add_middleware(
 @app.on_event("startup")
 async def startup_event():
     """Initialize storage, engine, and WebSocket manager on startup."""
+    import logging
+    
+    logger = logging.getLogger(__name__)
+    
     # Load config (default path or from environment)
     config_path = Path("config/default.json")
     if not config_path.exists():
@@ -56,6 +60,35 @@ async def startup_event():
         # Fallback - for MVP, just use SQLite (JSONBackendStorage would need implementation)
         storage = SQLiteBackendStorage(db_path)
         storage.init()
+
+    # Phase 8.1: Server startup recovery - load all hosts and check status
+    try:
+        all_hosts = storage.list_hosts()
+        heartbeat_interval = 10  # Default, can be overridden from config
+        
+        # Load heartbeat_interval from agent config if available
+        try:
+            if config_path.exists():
+                full_config = load_config(config_path)
+                agent_config = full_config.get("agent", {})
+                heartbeat_interval = agent_config.get("heartbeat_interval", 10)
+        except Exception:
+            pass
+        
+        logger.info(f"[STARTUP] Loaded {len(all_hosts)} known hosts")
+        
+        # Hosts are marked OFFLINE implicitly via get_host_status()
+        # No need to update DB on startup - status is calculated on-demand
+        online_count = 0
+        for host in all_hosts:
+            status = storage.get_host_status(host["host_id"], heartbeat_interval)
+            if status == "ONLINE":
+                online_count += 1
+        
+        if all_hosts:
+            logger.info(f"[STARTUP] Host status: {online_count} ONLINE, {len(all_hosts) - online_count} OFFLINE")
+    except Exception as e:
+        logger.warning(f"[STARTUP] Could not load host registry: {e}")
 
     # Initialize incident engine
     incidents_config = server_config.get("incidents", {})
