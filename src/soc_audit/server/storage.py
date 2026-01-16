@@ -78,6 +78,28 @@ class BackendStorage(ABC):
         """Add note to incident."""
         pass
 
+    # -------- Phase 7: Host registry --------
+
+    @abstractmethod
+    def upsert_host(self, host_info: dict[str, Any]) -> None:
+        """Create or update a host record."""
+        pass
+
+    @abstractmethod
+    def update_heartbeat(self, host_id: str, ts: str | None = None) -> None:
+        """Update last_seen timestamp for a host."""
+        pass
+
+    @abstractmethod
+    def list_hosts(self) -> list[dict[str, Any]]:
+        """List all known hosts."""
+        pass
+
+    @abstractmethod
+    def get_host(self, host_id: str) -> dict[str, Any] | None:
+        """Get host details by ID."""
+        pass
+
 
 class SQLiteBackendStorage(BackendStorage):
     """SQLite backend storage with multi-host support."""
@@ -163,6 +185,22 @@ class SQLiteBackendStorage(BackendStorage):
                 host_id TEXT
             )
         """
+        )
+
+        # Hosts table (Phase 7: multi-host federation)
+        cursor.execute(
+            """
+            CREATE TABLE IF NOT EXISTS hosts (
+                host_id TEXT PRIMARY KEY,
+                host_name TEXT,
+                first_seen_ts TEXT NOT NULL,
+                last_seen_ts TEXT NOT NULL,
+                meta_json TEXT
+            )
+            """
+        )
+        cursor.execute(
+            "CREATE INDEX IF NOT EXISTS idx_hosts_last_seen ON hosts(last_seen_ts)"
         )
 
         # Indexes
@@ -278,6 +316,117 @@ class SQLiteBackendStorage(BackendStorage):
         )
 
         conn.commit()
+
+    # -------- Phase 7: Host registry --------
+
+    def upsert_host(self, host_info: dict[str, Any]) -> None:
+        """Create or update a host record."""
+        conn = self._get_connection()
+        cursor = conn.cursor()
+
+        host_id = host_info["host_id"]
+        host_name = host_info.get("host_name")
+        now = datetime.utcnow().isoformat()
+
+        # Load existing host (if any) to preserve first_seen_ts / meta
+        cursor.execute(
+            "SELECT host_id, host_name, first_seen_ts, last_seen_ts, meta_json FROM hosts WHERE host_id = ?",
+            (host_id,),
+        )
+        row = cursor.fetchone()
+
+        if row:
+            first_seen_ts = row["first_seen_ts"]
+            meta = json.loads(row["meta_json"]) if row["meta_json"] else {}
+            # Merge metadata
+            meta.update(host_info.get("meta", {}))
+        else:
+            first_seen_ts = now
+            meta = host_info.get("meta", {})
+
+        cursor.execute(
+            """
+            INSERT OR REPLACE INTO hosts
+            (host_id, host_name, first_seen_ts, last_seen_ts, meta_json)
+            VALUES (?, ?, ?, ?, ?)
+            """,
+            (host_id, host_name, first_seen_ts, now, json.dumps(meta) if meta else None),
+        )
+        conn.commit()
+
+    def update_heartbeat(self, host_id: str, ts: str | None = None) -> None:
+        """Update last_seen timestamp for a host."""
+        conn = self._get_connection()
+        cursor = conn.cursor()
+
+        now = ts or datetime.utcnow().isoformat()
+
+        # Ensure host exists; if not, create minimal record
+        cursor.execute(
+            "SELECT host_id, host_name, first_seen_ts, meta_json FROM hosts WHERE host_id = ?",
+            (host_id,),
+        )
+        row = cursor.fetchone()
+        if row:
+            first_seen_ts = row["first_seen_ts"]
+            host_name = row["host_name"]
+            meta_json = row["meta_json"]
+        else:
+            first_seen_ts = now
+            host_name = None
+            meta_json = None
+
+        cursor.execute(
+            """
+            INSERT OR REPLACE INTO hosts
+            (host_id, host_name, first_seen_ts, last_seen_ts, meta_json)
+            VALUES (?, ?, ?, ?, ?)
+            """,
+            (host_id, host_name, first_seen_ts, now, meta_json),
+        )
+        conn.commit()
+
+    def list_hosts(self) -> list[dict[str, Any]]:
+        """List all known hosts, sorted by last_seen_ts DESC."""
+        conn = self._get_connection()
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT host_id, host_name, first_seen_ts, last_seen_ts, meta_json FROM hosts ORDER BY last_seen_ts DESC"
+        )
+        rows = cursor.fetchall()
+        hosts: list[dict[str, Any]] = []
+        for row in rows:
+            meta = json.loads(row["meta_json"]) if row["meta_json"] else {}
+            hosts.append(
+                {
+                    "host_id": row["host_id"],
+                    "host_name": row["host_name"],
+                    "first_seen_ts": row["first_seen_ts"],
+                    "last_seen_ts": row["last_seen_ts"],
+                    "meta": meta,
+                }
+            )
+        return hosts
+
+    def get_host(self, host_id: str) -> dict[str, Any] | None:
+        """Get host details by ID."""
+        conn = self._get_connection()
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT host_id, host_name, first_seen_ts, last_seen_ts, meta_json FROM hosts WHERE host_id = ?",
+            (host_id,),
+        )
+        row = cursor.fetchone()
+        if not row:
+            return None
+        meta = json.loads(row["meta_json"]) if row["meta_json"] else {}
+        return {
+            "host_id": row["host_id"],
+            "host_name": row["host_name"],
+            "first_seen_ts": row["first_seen_ts"],
+            "last_seen_ts": row["last_seen_ts"],
+            "meta": meta,
+        }
 
     def list_alerts(self, filters: dict[str, Any] | None = None) -> list[dict[str, Any]]:
         """List alerts with optional filters."""
