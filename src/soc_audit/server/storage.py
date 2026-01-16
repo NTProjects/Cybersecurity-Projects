@@ -115,6 +115,16 @@ class BackendStorage(ABC):
         """
         pass
 
+    @abstractmethod
+    def get_incident_metrics(self) -> dict[str, Any]:
+        """
+        Phase 9.2: Get incident lifecycle metrics (MTTR, aging buckets).
+        
+        Returns:
+            Dict with mttr_seconds, resolved_count, open_count, aging_buckets.
+        """
+        pass
+
 
 class SQLiteBackendStorage(BackendStorage):
     """SQLite backend storage with multi-host support."""
@@ -677,6 +687,82 @@ class SQLiteBackendStorage(BackendStorage):
         new_notes = f"{existing_notes}\n[{datetime.utcnow().isoformat()}] {note}".strip()
 
         self.update_incident_status(incident_id, notes=new_notes)
+
+    def get_incident_metrics(self) -> dict[str, Any]:
+        """
+        Phase 9.2: Get incident lifecycle metrics (MTTR, aging buckets).
+        
+        Returns:
+            Dict with:
+            - mttr_seconds: float | None (MTTR in seconds, None if no closed incidents)
+            - resolved_count: int
+            - open_count: int
+            - aging_buckets: dict with "<1h", "1-4h", "4-24h", ">24h" counts
+        """
+        conn = self._get_connection()
+        cursor = conn.cursor()
+        
+        # Get all incidents
+        cursor.execute("SELECT status, created_ts, updated_ts FROM incidents")
+        rows = cursor.fetchall()
+        
+        now = datetime.utcnow()
+        resolved_count = 0
+        open_count = 0
+        total_resolution_time = 0.0
+        aging_buckets = {"<1h": 0, "1-4h": 0, "4-24h": 0, ">24h": 0}
+        
+        for row in rows:
+            status = row["status"]
+            created_ts = row["created_ts"]
+            updated_ts = row["updated_ts"]
+            
+            if status == "closed":
+                resolved_count += 1
+                try:
+                    created_dt = datetime.fromisoformat(created_ts.replace("Z", "+00:00"))
+                    updated_dt = datetime.fromisoformat(updated_ts.replace("Z", "+00:00"))
+                    if created_dt.tzinfo:
+                        now_with_tz = now.replace(tzinfo=created_dt.tzinfo)
+                        updated_dt = updated_dt.replace(tzinfo=created_dt.tzinfo) if not updated_dt.tzinfo else updated_dt
+                    else:
+                        now_with_tz = now
+                    
+                    resolution_time = (updated_dt - created_dt).total_seconds()
+                    total_resolution_time += resolution_time
+                except Exception:
+                    pass
+            elif status == "open":
+                open_count += 1
+                try:
+                    created_dt = datetime.fromisoformat(created_ts.replace("Z", "+00:00"))
+                    if created_dt.tzinfo:
+                        now_with_tz = now.replace(tzinfo=created_dt.tzinfo)
+                    else:
+                        now_with_tz = now
+                    
+                    age_seconds = (now_with_tz - created_dt).total_seconds()
+                    
+                    if age_seconds < 3600:  # < 1 hour
+                        aging_buckets["<1h"] += 1
+                    elif age_seconds < 4 * 3600:  # 1-4 hours
+                        aging_buckets["1-4h"] += 1
+                    elif age_seconds < 24 * 3600:  # 4-24 hours
+                        aging_buckets["4-24h"] += 1
+                    else:  # > 24 hours
+                        aging_buckets[">24h"] += 1
+                except Exception:
+                    pass
+        
+        # Calculate MTTR (only from closed incidents)
+        mttr_seconds = total_resolution_time / resolved_count if resolved_count > 0 else None
+        
+        return {
+            "mttr_seconds": mttr_seconds,
+            "resolved_count": resolved_count,
+            "open_count": open_count,
+            "aging_buckets": aging_buckets,
+        }
 
     def get_host_status(self, host_id: str, heartbeat_interval: int = 10) -> str:
         """

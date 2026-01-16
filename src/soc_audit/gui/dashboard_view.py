@@ -249,6 +249,17 @@ class DashboardView(ttk.Frame):
         # Details Panel (right)
         self.details_panel = DetailsPanel(bottom_frame)
         self.details_panel.grid(row=0, column=1, sticky="nsew", padx=(5, 0))
+        
+        # Phase 9.2: Incident Analytics Panel (created when backend enabled)
+        self._analytics_frame: ttk.LabelFrame | None = None
+        self._analytics_mttr_var: tk.StringVar | None = None
+        self._analytics_open_var: tk.StringVar | None = None
+        self._analytics_closed_var: tk.StringVar | None = None
+        self._analytics_aging_var: tk.StringVar | None = None
+        
+        # Create analytics panel if backend enabled
+        if self._backend_client:
+            self._create_analytics_panel()
 
     def _on_alert_select(self, alert_data: dict[str, Any]) -> None:
         """
@@ -330,6 +341,10 @@ class DashboardView(ttk.Frame):
         
         # Phase 9.1: Update summary badges
         self._update_summary_badges()
+        
+        # Phase 9.2: Update incident analytics if backend enabled
+        if self._backend_client:
+            self._update_incident_analytics()
 
         # Only update status bar if error state changed (avoid spam)
         error = metrics.get("error")
@@ -414,6 +429,83 @@ class DashboardView(ttk.Frame):
             self._oldest_badge.config(text=f"Oldest Alert: {oldest_str}")
         else:
             self._oldest_badge.config(text="")
+    
+    def _create_analytics_panel(self) -> None:
+        """Phase 9.2: Create Incident Analytics panel (shown only when backend enabled)."""
+        if self._analytics_frame:
+            return  # Already created
+        
+        # Create panel below the bottom row
+        self._analytics_frame = ttk.LabelFrame(self, text="Incident Analytics", padding=10)
+        self._analytics_frame.grid(row=3, column=0, sticky="ew", padx=5, pady=(0, 5))
+        self._analytics_frame.columnconfigure(1, weight=1)
+        
+        # Variables
+        self._analytics_mttr_var = tk.StringVar(value="N/A")
+        self._analytics_open_var = tk.StringVar(value="0")
+        self._analytics_closed_var = tk.StringVar(value="0")
+        self._analytics_aging_var = tk.StringVar(value="")
+        
+        row = 0
+        
+        # MTTR
+        ttk.Label(self._analytics_frame, text="MTTR:").grid(row=row, column=0, sticky="w", padx=5, pady=3)
+        ttk.Label(self._analytics_frame, textvariable=self._analytics_mttr_var).grid(row=row, column=1, sticky="w", padx=5, pady=3)
+        row += 1
+        
+        # Open Incidents
+        ttk.Label(self._analytics_frame, text="Open Incidents:").grid(row=row, column=0, sticky="w", padx=5, pady=3)
+        ttk.Label(self._analytics_frame, textvariable=self._analytics_open_var).grid(row=row, column=1, sticky="w", padx=5, pady=3)
+        row += 1
+        
+        # Closed Incidents
+        ttk.Label(self._analytics_frame, text="Closed Incidents:").grid(row=row, column=0, sticky="w", padx=5, pady=3)
+        ttk.Label(self._analytics_frame, textvariable=self._analytics_closed_var).grid(row=row, column=1, sticky="w", padx=5, pady=3)
+        row += 1
+        
+        # Aging Buckets
+        ttk.Label(self._analytics_frame, text="Aging Buckets:").grid(row=row, column=0, sticky="w", padx=5, pady=3)
+        ttk.Label(self._analytics_frame, textvariable=self._analytics_aging_var, wraplength=400).grid(row=row, column=1, sticky="w", padx=5, pady=3)
+    
+    def _update_incident_analytics(self) -> None:
+        """Phase 9.2: Update incident analytics from backend."""
+        if not self._backend_client or not self._analytics_frame:
+            return
+        
+        try:
+            metrics = self._backend_client.get_incident_metrics()
+            if not metrics:
+                return
+            
+            # MTTR
+            mttr_seconds = metrics.get("mttr_seconds")
+            if mttr_seconds is not None:
+                hours = int(mttr_seconds // 3600)
+                minutes = int((mttr_seconds % 3600) // 60)
+                seconds = int(mttr_seconds % 60)
+                mttr_str = f"{hours:02d}:{minutes:02d}:{seconds:02d}"
+                self._analytics_mttr_var.set(mttr_str)
+            else:
+                self._analytics_mttr_var.set("N/A (no closed incidents)")
+            
+            # Counts
+            self._analytics_open_var.set(str(metrics.get("open_count", 0)))
+            self._analytics_closed_var.set(str(metrics.get("resolved_count", 0)))
+            
+            # Aging buckets
+            aging = metrics.get("aging_buckets", {})
+            aging_parts = []
+            if aging.get("<1h", 0) > 0:
+                aging_parts.append(f"<1h: {aging['<1h']}")
+            if aging.get("1-4h", 0) > 0:
+                aging_parts.append(f"1-4h: {aging['1-4h']}")
+            if aging.get("4-24h", 0) > 0:
+                aging_parts.append(f"4-24h: {aging['4-24h']}")
+            if aging.get(">24h", 0) > 0:
+                aging_parts.append(f">24h: {aging['>24h']}")
+            self._analytics_aging_var.set(", ".join(aging_parts) if aging_parts else "None")
+        except Exception:
+            pass  # Non-critical, don't spam errors
 
     # ==================== Finding Streaming ====================
 

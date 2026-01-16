@@ -9,6 +9,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from soc_audit.server.auth import get_role_from_request
 from soc_audit.server.deps import get_storage, get_ws_manager
 from soc_audit.server.schemas import IncidentSchema, NoteRequest
+from soc_audit.server.schemas.incident_metrics import IncidentMetricsResponse
 from soc_audit.server.storage import BackendStorage
 from soc_audit.server.ws_manager import WebSocketManager
 
@@ -95,6 +96,30 @@ async def close_incident(
     return updated_incident
 
 
+@router.get("/metrics", response_model=IncidentMetricsResponse)
+async def get_incident_metrics(
+    request: Request,
+    storage: BackendStorage = Depends(get_storage),
+):
+    """
+    Phase 9.2: Get incident lifecycle metrics (MTTR, aging buckets).
+    
+    Requires analyst or admin role.
+    """
+    # Check auth (analyst or admin allowed)
+    try:
+        role = get_role_from_request(request)
+        if role not in ["analyst", "admin"]:
+            raise HTTPException(status_code=403, detail="Requires analyst or admin role")
+    except HTTPException:
+        raise
+    except Exception:
+        pass  # Auth disabled - allow
+
+    metrics = storage.get_incident_metrics()
+    return IncidentMetricsResponse(**metrics)
+
+
 @router.post("/{incident_id}/note", response_model=IncidentSchema)
 async def add_incident_note(
     incident_id: str,
@@ -144,3 +169,27 @@ async def add_incident_note(
         await ws_manager.broadcast_json({"type": "incident", "data": updated_incident})
 
     return updated_incident
+
+
+@router.get("/metrics", response_model=IncidentMetricsResponse)
+async def get_incident_metrics(
+    request: Request,
+    storage: BackendStorage = Depends(get_storage),
+):
+    """
+    Phase 9.2: Get incident lifecycle metrics (MTTR, aging buckets).
+    
+    Requires analyst or admin role.
+    """
+    # Check auth (analyst or admin allowed)
+    try:
+        role = get_role_from_request(request)
+        if role not in ["analyst", "admin"]:
+            raise HTTPException(status_code=403, detail="Requires analyst or admin role")
+    except HTTPException:
+        raise
+    except Exception:
+        pass  # Auth disabled - allow
+
+    metrics = storage.get_incident_metrics()
+    return IncidentMetricsResponse(**metrics)

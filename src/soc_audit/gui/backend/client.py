@@ -339,6 +339,19 @@ class BackendClient:
             ISO timestamp string, or None if unknown.
         """
         return self._host_last_seen_cache.get(host_id)
+    
+    def get_incident_metrics(self) -> dict[str, Any] | None:
+        """
+        Phase 9.2: Get incident lifecycle metrics from backend.
+        
+        Returns:
+            Dict with mttr_seconds, resolved_count, open_count, aging_buckets.
+            Returns None on error.
+        """
+        response = self._make_request("/api/v1/incidents/metrics")
+        if not response or not isinstance(response, dict):
+            return None
+        return response
 
     def _poll_loop(self) -> None:
         """Background thread loop for REST polling."""
