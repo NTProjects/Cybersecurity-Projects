@@ -671,17 +671,27 @@ class DashboardView(ttk.Frame):
         if not alert_event.suppressed or self._show_suppressed:
             time_display = self._format_time_ago(alert_event.timestamp)
             
-            # Update Alerts panel
+            # Phase 8.2: Get host status from backend client cache
+            host_status = None
+            if self._backend_client and host_id:
+                host_status = self._backend_client.get_host_status(host_id)
+            
+            # Update Alerts panel with host status
             self.alerts_panel.append_finding(
-                finding, alert_event.module, time_display, source="backend", alert_event=alert_event
+                finding, alert_event.module, time_display, source="backend", alert_event=alert_event, host_status=host_status
             )
             
-            # Phase 7.3: Update Timeline with [host_id] prefix
+            # Phase 8.2: Update Timeline with [host_id | STATUS] prefix
             host_id = getattr(alert_event, "host_id", None)
             if host_id:
-                # Prefix timeline entry with [host_id]
+                # Get host status from backend client cache
+                host_status = "UNKNOWN"
+                if self._backend_client:
+                    host_status = self._backend_client.get_host_status(host_id)
+                
+                # Prefix timeline entry with [host_id | STATUS]
                 finding_with_prefix = Finding(
-                    title=f"[{host_id}] {alert_event.title}",
+                    title=f"[{host_id} | {host_status}] {alert_event.title}",
                     description=finding.description,
                     severity=finding.severity,
                     evidence=finding.evidence,

@@ -4,7 +4,7 @@ from __future__ import annotations
 import json
 import threading
 import time
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Callable
 from urllib import request
 from urllib.error import URLError
@@ -65,6 +65,10 @@ class BackendClient:
         self.status = "disconnected"  # disconnected, polling, connected, error
         self.last_error: str | None = None
         self.backend_role: str | None = None  # Phase 6.2: Role from backend
+        
+        # Phase 8.2: Host status cache
+        self._host_status_cache: dict[str, str] = {}  # host_id -> "ONLINE" | "OFFLINE" | "UNKNOWN"
+        self._host_last_seen_cache: dict[str, str] = {}  # host_id -> last_seen_ts (ISO string)
 
     def build_base_url(self) -> str:
         """Build the base API URL."""
@@ -273,7 +277,68 @@ class BackendClient:
         if not isinstance(hosts, list):
             return []
         
+        # Phase 8.2: Update host status cache on successful get_hosts()
+        self._update_host_status_cache(hosts)
+        
         return hosts
+    
+    def _update_host_status_cache(self, hosts: list[dict[str, Any]]) -> None:
+        """
+        Phase 8.2: Update host status cache from hosts list.
+        
+        Args:
+            hosts: List of host dicts from backend.
+        """
+        now = datetime.now(timezone.utc)
+        heartbeat_interval = 10  # Default, matching server default
+        
+        for host in hosts:
+            host_id = host.get("host_id")
+            if not host_id:
+                continue
+            
+            last_seen_ts = host.get("last_seen_ts")
+            self._host_last_seen_cache[host_id] = last_seen_ts or ""
+            
+            # Calculate status (ONLINE if last_seen_ts within 2 × heartbeat_interval)
+            status = "UNKNOWN"
+            if last_seen_ts:
+                try:
+                    last_seen = datetime.fromisoformat(last_seen_ts.replace("Z", "+00:00"))
+                    if not last_seen.tzinfo:
+                        last_seen = last_seen.replace(tzinfo=timezone.utc)
+                    
+                    elapsed = (now - last_seen).total_seconds()
+                    threshold = 2 * heartbeat_interval
+                    status = "ONLINE" if elapsed <= threshold else "OFFLINE"
+                except Exception:
+                    status = "UNKNOWN"
+            
+            self._host_status_cache[host_id] = status
+    
+    def get_host_status(self, host_id: str) -> str:
+        """
+        Phase 8.2: Get host status from cache.
+        
+        Args:
+            host_id: Host identifier.
+        
+        Returns:
+            "ONLINE", "OFFLINE", or "UNKNOWN".
+        """
+        return self._host_status_cache.get(host_id, "UNKNOWN")
+    
+    def get_host_last_seen(self, host_id: str) -> str | None:
+        """
+        Phase 8.2: Get host last_seen timestamp from cache.
+        
+        Args:
+            host_id: Host identifier.
+        
+        Returns:
+            ISO timestamp string, or None if unknown.
+        """
+        return self._host_last_seen_cache.get(host_id)
 
     def _poll_loop(self) -> None:
         """Background thread loop for REST polling."""
@@ -300,6 +365,12 @@ class BackendClient:
                     if self.on_incident:
                         self.on_incident(incident)
                 
+                # Phase 8.2: Poll hosts to update status cache
+                try:
+                    self.get_hosts()  # Updates cache internally
+                except Exception:
+                    pass  # Non-critical, continue polling
+                
                 self._last_poll_time = time.time()
                 self.last_error = None
                 
@@ -316,6 +387,9 @@ class BackendClient:
             time.sleep(self.poll_interval_seconds)
         
         self.status = "disconnected"
+        # Phase 8.2: Clear host status cache on disconnect
+        self._host_status_cache.clear()
+        self._host_last_seen_cache.clear()
         if self.on_status:
             self.on_status("disconnected", "Backend polling stopped")
 

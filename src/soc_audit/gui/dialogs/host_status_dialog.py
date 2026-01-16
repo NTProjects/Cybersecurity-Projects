@@ -89,8 +89,27 @@ class HostStatusDialog:
             first_seen_display = self._format_timestamp(first_seen_ts)
             last_seen_display = self._format_timestamp(last_seen_ts)
 
-            tree.insert("", tk.END, values=(host_id, host_name, first_seen_display, last_seen_display, status))
+            # Phase 8.2: Status indicator with color
+            status_display = f"● {status}"
+            
+            item = tree.insert("", tk.END, values=(host_id, host_name, first_seen_display, last_seen_display, status_display))
+            
+            # Phase 8.2: Apply color tags based on status
+            if status == "ONLINE":
+                tree.set(item, "status", "● ONLINE")
+                tree.item(item, tags=("online",))
+            elif status == "OFFLINE":
+                tree.set(item, "status", "● OFFLINE")
+                tree.item(item, tags=("offline",))
+            else:
+                tree.set(item, "status", "● UNKNOWN")
+                tree.item(item, tags=("unknown",))
 
+        # Phase 8.2: Configure status color tags
+        tree.tag_configure("online", foreground="#00aa00")  # Green
+        tree.tag_configure("offline", foreground="#aa0000")  # Red
+        tree.tag_configure("unknown", foreground="#666666")  # Gray
+        
         tree.grid(row=0, column=0, sticky="nsew")
 
         # Scrollbar

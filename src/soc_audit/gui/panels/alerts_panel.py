@@ -153,6 +153,9 @@ class AlertsPanel(ttk.LabelFrame):
         self.tree.tag_configure("rba_medium", background="#5a2a1a")  # RBA 50-79
         # Suppressed alerts styling
         self.tree.tag_configure("suppressed", foreground="#666666")
+        
+        # Phase 8.2: Host status styling (OFFLINE hosts dimmed)
+        self.tree.tag_configure("host_offline", foreground="#888888")  # Dimmed gray
 
         self.tree.grid(row=1, column=0, sticky="nsew")
 
@@ -225,6 +228,7 @@ class AlertsPanel(ttk.LabelFrame):
         timestamp: str = "Now",
         source: str = "engine",
         alert_event: Any | None = None,  # Optional AlertEvent
+        host_status: str | None = None,  # Phase 8.2: "ONLINE", "OFFLINE", "UNKNOWN"
     ) -> None:
         """
         Append a single finding to the alerts table (streaming mode).
@@ -267,6 +271,11 @@ class AlertsPanel(ttk.LabelFrame):
         if suppressed:
             tag = "suppressed"
         
+        # Phase 8.2: Apply host status styling (OFFLINE hosts dimmed)
+        tags_list = [tag] if tag else []
+        if host_status == "OFFLINE" and source == "backend":
+            tags_list.append("host_offline")
+        
         # Cache the finding/event for drill-down
         self.findings_cache.append(finding)
         if alert_event and alert_id:
@@ -290,7 +299,7 @@ class AlertsPanel(ttk.LabelFrame):
                 "Y" if suppressed else "N",
                 incident_display,
             ),
-            tags=(tag,),
+            tags=tuple(tags_list),
         )
         
         # Ensure alert_id is set (in case it was None in values)
