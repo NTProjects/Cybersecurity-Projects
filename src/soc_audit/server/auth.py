@@ -38,7 +38,7 @@ def get_role_from_request(
         config_path: Optional path to config file.
 
     Returns:
-        Role string ("analyst" or "admin").
+        Role string ("analyst", "admin", or "agent").
 
     Raises:
         HTTPException: If authentication fails.
@@ -105,7 +105,7 @@ def get_role_from_websocket(websocket, auth_config: dict[str, Any] | None = None
         auth_config: Optional auth config dict.
 
     Returns:
-        Role string ("analyst" or "admin").
+        Role string ("analyst", "admin", or "agent").
 
     Raises:
         WebSocketDisconnect: If authentication fails (code 4401).

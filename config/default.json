@@ -77,7 +77,8 @@
       "enabled": false,
       "keys": [
         {"key": "ADMIN_KEY", "role": "admin"},
-        {"key": "ANALYST_KEY", "role": "analyst"}
+        {"key": "ANALYST_KEY", "role": "analyst"},
+        {"key": "AGENT_KEY", "role": "agent"}
       ]
     },
     "storage": {

@@ -11,7 +11,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from soc_audit.core.config import load_config
 from soc_audit.server.auth import get_auth_config
 from soc_audit.server.incident_engine import ServerIncidentEngine
-from soc_audit.server.routes import alerts, incidents, ingest
+from soc_audit.server.routes import alerts, heartbeat, hosts, incidents, ingest, ingest_batch
 from soc_audit.server.routes.ws import websocket_stream
 from soc_audit.server.storage import BackendStorage, SQLiteBackendStorage
 from soc_audit.server.ws_manager import WebSocketManager
@@ -83,6 +83,10 @@ async def shutdown_event():
 app.include_router(ingest.router)
 app.include_router(alerts.router)
 app.include_router(incidents.router)
+# Phase 7.1: Multi-host federation routes
+app.include_router(hosts.router)
+app.include_router(heartbeat.router)
+app.include_router(ingest_batch.router)
 
 # Register WebSocket route directly (not via router)
 app.add_api_websocket_route("/ws/stream", websocket_stream)

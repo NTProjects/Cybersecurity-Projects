@@ -1,4 +1,4 @@
-"""Pydantic schemas for API request/response validation."""
+"""Server-side Pydantic schemas for API request/response validation."""
 from __future__ import annotations
 
 from datetime import datetime
