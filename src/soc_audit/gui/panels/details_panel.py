@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import json
 import tkinter as tk
+from datetime import datetime, timezone
 from tkinter import ttk
 from typing import TYPE_CHECKING, Any
 
@@ -126,6 +127,45 @@ class DetailsPanel(ttk.LabelFrame):
             self.text.insert(tk.END, "Time:        ", "label")
             self.text.insert(tk.END, f"{alert_data['time']}\n", "value")
         
+        # Phase 9.1: Age and SLA status
+        finding = alert_data.get("finding")
+        alert_event = alert_data.get("alert_event")
+        alert_timestamp = None
+        
+        # Try to get timestamp from finding or alert_event
+        if alert_event:
+            alert_timestamp = getattr(alert_event, "timestamp", None)
+        elif finding:
+            timestamp_attr = getattr(finding, "timestamp", None)
+            if timestamp_attr:
+                if isinstance(timestamp_attr, str):
+                    try:
+                        alert_timestamp = datetime.fromisoformat(timestamp_attr.replace("Z", "+00:00"))
+                    except Exception:
+                        pass
+                elif isinstance(timestamp_attr, datetime):
+                    alert_timestamp = timestamp_attr
+        
+        if alert_timestamp:
+            # Calculate age
+            age_str = self._format_age(alert_timestamp)
+            self.text.insert(tk.END, "Age:         ", "label")
+            self.text.insert(tk.END, f"{age_str}\n", "value")
+            
+            # Calculate SLA status
+            acked = alert_data.get("acked") == "Y"
+            suppressed = alert_data.get("suppressed") == "Y"
+            if not acked and not suppressed:
+                sla_status = self._calculate_sla_status(severity.lower(), alert_timestamp)
+                if sla_status:
+                    self.text.insert(tk.END, "SLA Status:  ", "label")
+                    if sla_status == "breach":
+                        self.text.insert(tk.END, "⚠ BREACH\n", "critical")
+                    elif sla_status == "warning":
+                        self.text.insert(tk.END, "⚠ WARNING\n", "high")
+                    else:
+                        self.text.insert(tk.END, "OK\n", "value")
+        
         # Phase 5.5: Ack and Suppressed status
         if alert_data.get("acked"):
             acked_val = alert_data["acked"]
@@ -144,7 +184,8 @@ class DetailsPanel(ttk.LabelFrame):
                 self.text.insert(tk.END, f"{incident_val}\n", "value")
 
         # Check if we have the full Finding object for drill-down
-        finding = alert_data.get("finding")
+        if not finding:  # finding may already be set above
+            finding = alert_data.get("finding")
         if finding:
             self._show_finding_details(finding, alert_data)
         else:
@@ -277,3 +318,76 @@ class DetailsPanel(ttk.LabelFrame):
     def clear(self) -> None:
         """Clear the details panel."""
         self.set_placeholder_text()
+    
+    def _format_age(self, timestamp: datetime) -> str:
+        """
+        Phase 9.1: Format alert age as human-readable string.
+        
+        Args:
+            timestamp: Alert timestamp.
+        
+        Returns:
+            Formatted age string (e.g., "45s", "3m 12s", "2h 4m", "1d 3h").
+        """
+        now = datetime.now(timezone.utc) if timestamp.tzinfo else datetime.utcnow()
+        if timestamp.tzinfo:
+            now = now.replace(tzinfo=timezone.utc)
+        
+        delta = now - timestamp
+        total_seconds = int(delta.total_seconds())
+        
+        if total_seconds < 60:
+            return f"{total_seconds}s"
+        elif total_seconds < 3600:
+            minutes = total_seconds // 60
+            seconds = total_seconds % 60
+            if seconds > 0:
+                return f"{minutes}m {seconds}s"
+            return f"{minutes}m"
+        elif total_seconds < 86400:
+            hours = total_seconds // 3600
+            minutes = (total_seconds % 3600) // 60
+            if minutes > 0:
+                return f"{hours}h {minutes}m"
+            return f"{hours}h"
+        else:
+            days = total_seconds // 86400
+            hours = (total_seconds % 86400) // 3600
+            if hours > 0:
+                return f"{days}d {hours}h"
+            return f"{days}d"
+    
+    def _calculate_sla_status(self, severity: str, timestamp: datetime) -> str | None:
+        """
+        Phase 9.1: Calculate SLA status for an alert.
+        
+        Args:
+            severity: Alert severity (critical, high, medium, low, info).
+            timestamp: Alert timestamp.
+        
+        Returns:
+            "breach", "warning", or None if OK.
+        """
+        # SLA thresholds (GUI-only constants, matching alerts_panel)
+        sla_thresholds = {
+            "critical": 15 * 60,  # 15 minutes
+            "high": 60 * 60,  # 1 hour
+            "medium": 4 * 60 * 60,  # 4 hours
+            "low": 24 * 60 * 60,  # 24 hours
+            "info": 24 * 60 * 60,  # 24 hours
+        }
+        
+        sla_threshold = sla_thresholds.get(severity, sla_thresholds["info"])
+        
+        now = datetime.now(timezone.utc) if timestamp.tzinfo else datetime.utcnow()
+        if timestamp.tzinfo:
+            now = now.replace(tzinfo=timezone.utc)
+        
+        age_seconds = (now - timestamp).total_seconds()
+        
+        if age_seconds > sla_threshold:
+            return "breach"
+        elif age_seconds > 0.75 * sla_threshold:
+            return "warning"
+        
+        return None

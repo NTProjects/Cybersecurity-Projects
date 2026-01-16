@@ -188,9 +188,33 @@ class DashboardView(ttk.Frame):
         self.rowconfigure(1, weight=0)  # Timeline
         self.rowconfigure(2, weight=1)  # Bottom row
 
+        # Phase 9.1: Summary badges (top-right)
+        self._badges_frame = ttk.Frame(self)
+        self._badges_frame.grid(row=0, column=0, sticky="ne", padx=5, pady=2)
+        self._critical_badge = tk.Label(
+            self._badges_frame,
+            text="",
+            bg="#1e1e1e",
+            fg="#ff4444",
+            font=("Consolas", 9),
+            padx=8,
+            pady=2,
+        )
+        self._oldest_badge = tk.Label(
+            self._badges_frame,
+            text="",
+            bg="#1e1e1e",
+            fg="#ffa726",
+            font=("Consolas", 9),
+            padx=8,
+            pady=2,
+        )
+        self._critical_badge.pack(side=tk.RIGHT, padx=2)
+        self._oldest_badge.pack(side=tk.RIGHT, padx=2)
+        
         # === Top Row: Metrics + Alerts ===
         top_frame = ttk.Frame(self)
-        top_frame.grid(row=0, column=0, sticky="nsew", padx=5, pady=5)
+        top_frame.grid(row=0, column=0, sticky="nsew", padx=5, pady=(28, 5))  # Extra top padding for badges
         top_frame.columnconfigure(0, weight=1)
         top_frame.columnconfigure(1, weight=2)
         top_frame.rowconfigure(0, weight=1)
@@ -303,6 +327,9 @@ class DashboardView(ttk.Frame):
         """Fetch and update live metrics."""
         metrics = get_system_metrics()
         self.metrics_panel.update_metrics(metrics)
+        
+        # Phase 9.1: Update summary badges
+        self._update_summary_badges()
 
         # Only update status bar if error state changed (avoid spam)
         error = metrics.get("error")
@@ -312,6 +339,81 @@ class DashboardView(ttk.Frame):
                 self.set_status(f"Metrics: {error}")
             elif not self._streaming:
                 self.set_status("Dashboard - Live metrics active")
+    
+    def _update_summary_badges(self) -> None:
+        """Phase 9.1: Update summary badges for critical > SLA and oldest alert."""
+        if not self.alerts_panel:
+            self._critical_badge.config(text="")
+            self._oldest_badge.config(text="")
+            return
+        
+        # Get all alerts from alerts panel
+        alerts_cache = self.alerts_panel.alert_events_cache
+        findings_cache = self.alerts_panel.findings_cache
+        
+        critical_over_sla = 0
+        oldest_age_seconds = None
+        now = datetime.now(timezone.utc)
+        
+        # SLA thresholds (matching alerts_panel)
+        sla_thresholds = {
+            "critical": 15 * 60,  # 15 minutes
+            "high": 60 * 60,
+            "medium": 4 * 60 * 60,
+            "low": 24 * 60 * 60,
+            "info": 24 * 60 * 60,
+        }
+        
+        for alert_id, alert_event in alerts_cache.items():
+            acked = getattr(alert_event, "acked", False)
+            suppressed = getattr(alert_event, "suppressed", False)
+            
+            if acked or suppressed:
+                continue
+            
+            alert_timestamp = getattr(alert_event, "timestamp", None)
+            if not alert_timestamp or not isinstance(alert_timestamp, datetime):
+                continue
+            
+            if alert_timestamp.tzinfo:
+                now = datetime.now(timezone.utc)
+            else:
+                now = datetime.utcnow()
+            
+            age_seconds = (now - alert_timestamp).total_seconds()
+            
+            # Track oldest alert
+            if oldest_age_seconds is None or age_seconds > oldest_age_seconds:
+                oldest_age_seconds = age_seconds
+            
+            # Check if critical and over SLA
+            severity = getattr(alert_event, "severity", "info").lower()
+            if severity == "critical":
+                sla_threshold = sla_thresholds.get("critical", 15 * 60)
+                if age_seconds > sla_threshold:
+                    critical_over_sla += 1
+        
+        # Update badges
+        if critical_over_sla > 0:
+            self._critical_badge.config(text=f"Critical > SLA: {critical_over_sla}")
+        else:
+            self._critical_badge.config(text="")
+        
+        if oldest_age_seconds is not None:
+            # Format oldest age
+            if oldest_age_seconds < 3600:
+                oldest_str = f"{int(oldest_age_seconds // 60)}m"
+            elif oldest_age_seconds < 86400:
+                hours = int(oldest_age_seconds // 3600)
+                minutes = int((oldest_age_seconds % 3600) // 60)
+                oldest_str = f"{hours}h {minutes}m" if minutes > 0 else f"{hours}h"
+            else:
+                days = int(oldest_age_seconds // 86400)
+                hours = int((oldest_age_seconds % 86400) // 3600)
+                oldest_str = f"{days}d {hours}h" if hours > 0 else f"{days}d"
+            self._oldest_badge.config(text=f"Oldest Alert: {oldest_str}")
+        else:
+            self._oldest_badge.config(text="")
 
     # ==================== Finding Streaming ====================
 

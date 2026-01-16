@@ -6,6 +6,7 @@ events in a Splunk ES-style format with live streaming support.
 from __future__ import annotations
 
 import tkinter as tk
+from datetime import datetime, timezone
 from tkinter import ttk
 from typing import TYPE_CHECKING, Any, Callable
 
@@ -148,6 +149,13 @@ class AlertsPanel(ttk.LabelFrame):
         self.tree.tag_configure("low", background="#1a2a4a")
         self.tree.tag_configure("info", background="#2a2a2a")
         
+        # Phase 9.1: Severity column cell colors (foreground)
+        self.tree.tag_configure("severity_critical", foreground="#ff4444")  # Dark red
+        self.tree.tag_configure("severity_high", foreground="#ff6b6b")  # Red
+        self.tree.tag_configure("severity_medium", foreground="#ffa726")  # Amber/yellow
+        self.tree.tag_configure("severity_low", foreground="#42a5f5")  # Blue/gray
+        self.tree.tag_configure("severity_info", foreground="#78909c")  # Gray
+        
         # RBA-based highlighting
         self.tree.tag_configure("rba_high", background="#5a1a1a")  # RBA >= 80
         self.tree.tag_configure("rba_medium", background="#5a2a1a")  # RBA 50-79
@@ -156,6 +164,10 @@ class AlertsPanel(ttk.LabelFrame):
         
         # Phase 8.2: Host status styling (OFFLINE hosts dimmed)
         self.tree.tag_configure("host_offline", foreground="#888888")  # Dimmed gray
+        
+        # Phase 9.1: SLA risk indicators
+        self.tree.tag_configure("sla_warning", foreground="#ffa726")  # Amber for warning
+        self.tree.tag_configure("sla_breach", foreground="#ff4444")  # Red for breach
 
         self.tree.grid(row=1, column=0, sticky="nsew")
 
@@ -214,11 +226,13 @@ class AlertsPanel(ttk.LabelFrame):
             # Include the Finding/AlertEvent object if available for drill-down
             if 0 <= idx < len(self.findings_cache):
                 data["finding"] = self.findings_cache[idx]
-            # Try to get AlertEvent by ID from item tags or stored ID
-            item_tags = item.get("tags", [])
-            if item_tags:
-                # Store alert_id in tags if available
-                pass
+            # Phase 9.1: Include alert_event for age/SLA calculation
+            alert_event = None
+            if alert_id:
+                alert_event = self.alert_events_cache.get(alert_id)
+            if alert_event:
+                data["alert_event"] = alert_event
+            
             self.on_select(data)
 
     def append_finding(
@@ -276,6 +290,46 @@ class AlertsPanel(ttk.LabelFrame):
         if host_status == "OFFLINE" and source == "backend":
             tags_list.append("host_offline")
         
+        # Phase 9.1: Add severity column color tag
+        severity_tag = f"severity_{severity}" if severity in ["critical", "high", "medium", "low", "info"] else "severity_info"
+        tags_list.append(severity_tag)
+        
+        # Phase 9.1: Calculate age and SLA status
+        alert_age_seconds = None
+        sla_status = None
+        if alert_event:
+            alert_timestamp = getattr(alert_event, "timestamp", None)
+            if alert_timestamp and isinstance(alert_timestamp, datetime):
+                now = datetime.now(timezone.utc) if alert_timestamp.tzinfo else datetime.utcnow()
+                if alert_timestamp.tzinfo:
+                    now = now.replace(tzinfo=timezone.utc)
+                alert_age_seconds = (now - alert_timestamp).total_seconds()
+                
+                # SLA thresholds (GUI-only constants)
+                sla_thresholds = {
+                    "critical": 15 * 60,  # 15 minutes
+                    "high": 60 * 60,  # 1 hour
+                    "medium": 4 * 60 * 60,  # 4 hours
+                    "low": 24 * 60 * 60,  # 24 hours
+                    "info": 24 * 60 * 60,  # 24 hours
+                }
+                
+                sla_threshold = sla_thresholds.get(severity, sla_thresholds["info"])
+                
+                # Skip SLA if acked or suppressed
+                if not acked and not suppressed:
+                    if alert_age_seconds > sla_threshold:
+                        sla_status = "breach"
+                        tags_list.append("sla_breach")
+                    elif alert_age_seconds > 0.75 * sla_threshold:
+                        sla_status = "warning"
+                        tags_list.append("sla_warning")
+        
+        # Phase 9.1: Add ⚠ prefix to title if SLA breach
+        title_display = finding.title
+        if sla_status == "breach" and not acked and not suppressed:
+            title_display = f"⚠ {finding.title}"
+        
         # Cache the finding/event for drill-down
         self.findings_cache.append(finding)
         if alert_event and alert_id:
@@ -291,7 +345,7 @@ class AlertsPanel(ttk.LabelFrame):
                 finding.severity.capitalize(),
                 rba_display,
                 module_name,
-                finding.title,
+                title_display,
                 mitre_display,
                 timestamp,
                 source,
