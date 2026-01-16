@@ -374,6 +374,17 @@ class AlertsPanel(ttk.LabelFrame):
             if show and not self._filter_show_suppressed and suppressed_str == "Y":
                 show = False
             
+            # Phase 7.3: Host filter
+            if show and self._filter_host_id is not None:
+                # Get host_id from alert_event cache
+                alert_id = self.tree.set(item, "alert_id")
+                if alert_id:
+                    alert_event = self.alert_events_cache.get(alert_id)
+                    if alert_event:
+                        alert_host_id = getattr(alert_event, "host_id", None)
+                        if alert_host_id != self._filter_host_id:
+                            show = False
+            
             # Show/hide item using detach/reattach
             if show:
                 # Reattach if detached
@@ -390,7 +401,7 @@ class AlertsPanel(ttk.LabelFrame):
         self._filter_host_id = host_id
         self._apply_filters()
     
-    def should_show_alert(self, source: str, severity: str, rba: int, suppressed: bool) -> bool:
+    def should_show_alert(self, source: str, severity: str, rba: int, suppressed: bool, host_id: str | None = None) -> bool:
         """Check if alert should be shown based on current filters (for new alerts)."""
         # Source filter
         if self._filter_source != "All":
@@ -413,6 +424,11 @@ class AlertsPanel(ttk.LabelFrame):
         # Suppressed filter
         if not self._filter_show_suppressed and suppressed:
             return False
+        
+        # Phase 7.3: Host filter
+        if self._filter_host_id is not None:
+            if host_id != self._filter_host_id:
+                return False
         
         return True
     

@@ -196,6 +196,9 @@ class MainWindow:
         # Phase 6: Backend status
         self.view_menu.add_separator()
         self.view_menu.add_command(label="Backend Status", command=self._on_backend_status)
+        # Phase 7.3: Host scope
+        self.view_menu.add_command(label="Host Scope…", command=self._on_host_scope, state=tk.DISABLED)
+        self._host_scope_menu_item = self.view_menu.index("Host Scope…")
         
         # Phase 5.5: Alerts menu
         self.alerts_menu = tk.Menu(
@@ -229,6 +232,9 @@ class MainWindow:
         )
         menu_bar.add_cascade(label="Backend", menu=self.backend_menu)
         self.backend_menu.add_command(label="Authentication...", command=self._on_backend_auth)
+        # Phase 7.3: Host status
+        self.backend_menu.add_command(label="Hosts…", command=self._on_host_status, state=tk.DISABLED)
+        self._host_status_menu_item = self.backend_menu.index("Hosts…")
 
         # Help menu
         help_menu = tk.Menu(
@@ -491,14 +497,88 @@ class MainWindow:
         ttk.Button(button_frame, text="Clear", command=clear_auth).pack(side=tk.LEFT, padx=5)
         ttk.Button(button_frame, text="Cancel", command=dialog.destroy).pack(side=tk.LEFT, padx=5)
     
+    # Phase 7.3: Host scoping and status
+    def _on_host_scope(self) -> None:
+        """Handle View > Host Scope… menu action."""
+        backend_config = self.config.get("backend", {})
+        if not backend_config.get("enabled", False):
+            messagebox.showinfo(
+                "Host Scope",
+                "Backend mode is disabled.\n\n"
+                "Enable backend in config to use host scoping."
+            )
+            return
+        
+        # Get hosts from backend
+        hosts = self.dashboard_view.get_hosts()
+        if not hosts:
+            messagebox.showinfo(
+                "Host Scope",
+                "No hosts found.\n\n"
+                "Ensure agents are registered with the backend server."
+            )
+            return
+        
+        # Get current host scope
+        current_host_id = getattr(self.dashboard_view, "current_host_id", None)
+        
+        # Show host scope dialog
+        from soc_audit.gui.dialogs.host_scope_dialog import HostScopeDialog
+        
+        def on_confirm(host_id: str | None):
+            self.dashboard_view._on_host_scope_change(host_id)
+        
+        HostScopeDialog(self.root, hosts, current_host_id, on_confirm)
+    
+    def _on_host_status(self) -> None:
+        """Handle Backend > Hosts… menu action."""
+        backend_config = self.config.get("backend", {})
+        if not backend_config.get("enabled", False):
+            messagebox.showinfo(
+                "Host Status",
+                "Backend mode is disabled.\n\n"
+                "Enable backend in config to view host status."
+            )
+            return
+        
+        # Get hosts from backend
+        hosts = self.dashboard_view.get_hosts()
+        if not hosts:
+            messagebox.showinfo(
+                "Host Status",
+                "No hosts found.\n\n"
+                "Ensure agents are registered with the backend server."
+            )
+            return
+        
+        # Get heartbeat interval from config
+        heartbeat_interval = backend_config.get("poll_interval_seconds", 10)
+        
+        # Show host status dialog
+        from soc_audit.gui.dialogs.host_status_dialog import HostStatusDialog
+        
+        HostStatusDialog(self.root, hosts, int(heartbeat_interval * 2))
+    
     def _update_role_based_ui(self) -> None:
         """Update UI elements based on backend role (Phase 6.2)."""
         backend_config = self.config.get("backend", {})
-        if not backend_config.get("enabled", False):
+        backend_enabled = backend_config.get("enabled", False)
+        
+        backend_client = getattr(self.dashboard_view, "_backend_client", None)
+        backend_connected = backend_client is not None
+        
+        # Phase 7.3: Enable/disable host menu items based on backend connection
+        if backend_enabled and backend_connected:
+            self.view_menu.entryconfig(self._host_scope_menu_item, state=tk.NORMAL)
+            self.backend_menu.entryconfig(self._host_status_menu_item, state=tk.NORMAL)
+        else:
+            self.view_menu.entryconfig(self._host_scope_menu_item, state=tk.DISABLED)
+            self.backend_menu.entryconfig(self._host_status_menu_item, state=tk.DISABLED)
+        
+        if not backend_enabled:
             # Backend disabled - all actions available (local mode)
             return
         
-        backend_client = getattr(self.dashboard_view, "_backend_client", None)
         if not backend_client:
             return
         

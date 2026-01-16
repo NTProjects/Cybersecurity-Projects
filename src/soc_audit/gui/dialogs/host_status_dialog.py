@@ -1,0 +1,125 @@
+"""Dialog for displaying host status information."""
+from __future__ import annotations
+
+import tkinter as tk
+from datetime import datetime, timezone
+from tkinter import ttk
+from typing import Any
+
+
+class HostStatusDialog:
+    """Dialog displaying registered hosts and their status."""
+
+    def __init__(self, parent: tk.Widget, hosts: list[dict[str, Any]], heartbeat_interval: int = 10):
+        """
+        Initialize the host status dialog.
+
+        Args:
+            parent: Parent widget.
+            hosts: List of host dicts from backend.
+            heartbeat_interval: Heartbeat interval in seconds for ONLINE/OFFLINE calculation.
+        """
+        self.parent = parent
+        self.hosts = hosts
+        self.heartbeat_interval = heartbeat_interval
+
+        self._show_dialog()
+
+    def _show_dialog(self) -> None:
+        """Show the dialog."""
+        # Create dialog window
+        self.dialog = tk.Toplevel(self.parent)
+        self.dialog.title("Host Status")
+        self.dialog.geometry("800x400")
+        self.dialog.resizable(True, True)
+        self.dialog.transient(self.parent)
+
+        # Configure grid
+        self.dialog.columnconfigure(0, weight=1)
+        self.dialog.rowconfigure(0, weight=1)
+
+        # Create treeview with scrollbar
+        frame = ttk.Frame(self.dialog)
+        frame.grid(row=0, column=0, sticky="nsew", padx=10, pady=10)
+        frame.columnconfigure(0, weight=1)
+        frame.rowconfigure(0, weight=1)
+
+        # Treeview columns
+        columns = ("host_id", "host_name", "first_seen", "last_seen", "status")
+        tree = ttk.Treeview(frame, columns=columns, show="headings", height=15)
+        
+        # Configure column headings
+        tree.heading("host_id", text="Host ID")
+        tree.heading("host_name", text="Host Name")
+        tree.heading("first_seen", text="First Seen")
+        tree.heading("last_seen", text="Last Seen")
+        tree.heading("status", text="Status")
+
+        # Configure column widths
+        tree.column("host_id", width=150)
+        tree.column("host_name", width=200)
+        tree.column("first_seen", width=150)
+        tree.column("last_seen", width=150)
+        tree.column("status", width=100)
+
+        # Populate treeview
+        now = datetime.now(timezone.utc)
+        threshold_seconds = 2 * self.heartbeat_interval
+
+        for host in self.hosts:
+            host_id = host.get("host_id", "")
+            host_name = host.get("host_name") or "(unnamed)"
+            first_seen_ts = host.get("first_seen_ts", "")
+            last_seen_ts = host.get("last_seen_ts", "")
+
+            # Parse last_seen timestamp
+            status = "UNKNOWN"
+            try:
+                if last_seen_ts:
+                    last_seen = datetime.fromisoformat(last_seen_ts.replace("Z", "+00:00"))
+                    if last_seen.tzinfo is None:
+                        last_seen = last_seen.replace(tzinfo=timezone.utc)
+                    
+                    elapsed = (now - last_seen).total_seconds()
+                    status = "ONLINE" if elapsed < threshold_seconds else "OFFLINE"
+            except Exception:
+                status = "UNKNOWN"
+
+            # Format timestamps for display
+            first_seen_display = self._format_timestamp(first_seen_ts)
+            last_seen_display = self._format_timestamp(last_seen_ts)
+
+            tree.insert("", tk.END, values=(host_id, host_name, first_seen_display, last_seen_display, status))
+
+        tree.grid(row=0, column=0, sticky="nsew")
+
+        # Scrollbar
+        scrollbar = ttk.Scrollbar(frame, orient=tk.VERTICAL, command=tree.yview)
+        scrollbar.grid(row=0, column=1, sticky="ns")
+        tree.configure(yscrollcommand=scrollbar.set)
+
+        # Close button
+        button_frame = ttk.Frame(self.dialog)
+        button_frame.grid(row=1, column=0, sticky="ew", padx=10, pady=(0, 10))
+        button_frame.columnconfigure(0, weight=1)
+
+        close_button = ttk.Button(button_frame, text="Close", command=self.dialog.destroy)
+        close_button.grid(row=0, column=0)
+
+        # Focus on dialog
+        self.dialog.focus_set()
+
+    def _format_timestamp(self, ts: str) -> str:
+        """Format ISO timestamp for display."""
+        if not ts:
+            return "(unknown)"
+        
+        try:
+            dt = datetime.fromisoformat(ts.replace("Z", "+00:00"))
+            if dt.tzinfo is None:
+                dt = dt.replace(tzinfo=timezone.utc)
+            
+            # Format as YYYY-MM-DD HH:MM:SS
+            return dt.strftime("%Y-%m-%d %H:%M:%S")
+        except Exception:
+            return ts[:19] if len(ts) >= 19 else ts

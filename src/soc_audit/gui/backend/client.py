@@ -257,6 +257,24 @@ class BackendClient:
         )
         return response is not None
 
+    def get_hosts(self) -> list[dict[str, Any]]:
+        """
+        Get list of registered hosts from the backend.
+
+        Returns:
+            List of host dicts with host_id, host_name, first_seen_ts, last_seen_ts, meta.
+            Returns empty list on error.
+        """
+        response = self._make_request("/api/v1/hosts")
+        if not response or not isinstance(response, dict):
+            return []
+        
+        hosts = response.get("hosts", [])
+        if not isinstance(hosts, list):
+            return []
+        
+        return hosts
+
     def _poll_loop(self) -> None:
         """Background thread loop for REST polling."""
         self._polling = True

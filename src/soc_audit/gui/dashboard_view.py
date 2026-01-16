@@ -150,6 +150,10 @@ class DashboardView(ttk.Frame):
         # Phase 6: Backend client (optional)
         self._backend_client: BackendClient | None = None
         self._backend_alert_ids: set[str] = set()  # Track backend alerts for deduplication
+        
+        # Phase 7.3: Host scope state
+        self.current_host_id: str | None = None  # None = All Hosts
+        self._hosts_list: list[dict[str, Any]] = []  # Cached host list
         backend_config = self.config.get("backend", {})
         if backend_config.get("enabled", False):
             try:
@@ -641,6 +645,12 @@ class DashboardView(ttk.Frame):
             return
         self._backend_alert_ids.add(alert_event.id)
         
+        # Phase 7.3: Apply host scope filter
+        if self.current_host_id is not None:
+            alert_host_id = getattr(alert_event, "host_id", None)
+            if alert_host_id != self.current_host_id:
+                return  # Filter out alerts from other hosts
+        
         # Ensure source is "backend" for display
         alert_event.source = "backend"
         
@@ -666,8 +676,22 @@ class DashboardView(ttk.Frame):
                 finding, alert_event.module, time_display, source="backend", alert_event=alert_event
             )
             
-            # Update Timeline
-            self.timeline_panel.append_event(finding, alert_event.module, alert_event.timestamp)
+            # Phase 7.3: Update Timeline with [host_id] prefix
+            host_id = getattr(alert_event, "host_id", None)
+            if host_id:
+                # Prefix timeline entry with [host_id]
+                finding_with_prefix = Finding(
+                    title=f"[{host_id}] {alert_event.title}",
+                    description=finding.description,
+                    severity=finding.severity,
+                    evidence=finding.evidence,
+                    mitre_ids=finding.mitre_ids,
+                    rba_score=finding.rba_score,
+                    timestamp=finding.timestamp,
+                )
+                self.timeline_panel.append_event(finding_with_prefix, alert_event.module, alert_event.timestamp)
+            else:
+                self.timeline_panel.append_event(finding, alert_event.module, alert_event.timestamp)
             
             # Update Entity aggregation
             self.entities_panel.update_from_finding(finding)
@@ -707,10 +731,50 @@ class DashboardView(ttk.Frame):
             severity="info" if status in ("connected", "polling") else "warning",
         )
         self.timeline_panel.append_event(finding, "backend", datetime.utcnow())
+    
+    # ==================== Phase 7.3: Host Scoping ====================
+    
+    def _on_host_scope_change(self, host_id: str | None) -> None:
+        """
+        Handle host scope change.
         
-        # Phase 6.2: Update role-based UI in main window if available
-        if self.on_role_update:
-            self.on_role_update()
+        Args:
+            host_id: Selected host_id (None = All Hosts).
+        """
+        self.current_host_id = host_id
+        self._apply_host_filter()
+        
+        # Update status
+        if self.on_status:
+            scope_name = f"Host: {host_id}" if host_id else "All Hosts"
+            self.on_status(f"Host scope: {scope_name}")
+    
+    def _apply_host_filter(self) -> None:
+        """Apply host filter to alerts panel."""
+        if self.alerts_panel:
+            # Update alerts panel filter
+            self.alerts_panel.set_host_filter(self.current_host_id)
+            
+            # Refresh alerts panel to reapply filters
+            # Note: The alerts panel already has filtering logic from Phase 6.1
+            # We just need to update the host_id filter
+    
+    def get_hosts(self) -> list[dict[str, Any]]:
+        """
+        Get list of hosts from backend (with caching).
+        
+        Returns:
+            List of host dicts.
+        """
+        if not self._backend_client:
+            return []
+        
+        try:
+            hosts = self._backend_client.get_hosts()
+            self._hosts_list = hosts
+            return hosts
+        except Exception:
+            return self._hosts_list  # Return cached list on error
     
     # ==================== Phase 5.5: SOC Workflow Actions ====================
     
