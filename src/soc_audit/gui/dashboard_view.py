@@ -936,6 +936,23 @@ class DashboardView(ttk.Frame):
         )
         self.timeline_panel.append_event(finding, "backend", datetime.utcnow())
     
+    def _add_timeline_entry(self, message: str, level: str = "info", source: str = "export") -> None:
+        """
+        Phase 9.3: Helper method to add a timeline entry.
+        
+        Args:
+            message: Timeline message.
+            level: Severity level (info, warning, error).
+            source: Source identifier.
+        """
+        from soc_audit.core.interfaces import Finding
+        finding = Finding(
+            title=message,
+            description="",
+            severity=level,
+        )
+        self.timeline_panel.append_event(finding, source, datetime.utcnow())
+    
     # ==================== Phase 7.3: Host Scoping ====================
     
     def _on_host_scope_change(self, host_id: str | None) -> None:

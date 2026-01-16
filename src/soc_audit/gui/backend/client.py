@@ -352,6 +352,32 @@ class BackendClient:
         if not response or not isinstance(response, dict):
             return None
         return response
+    
+    def get_incident_report(self) -> dict[str, Any] | None:
+        """
+        Phase 9.3: Get incident report from backend.
+        
+        Returns:
+            Dict with incident report data.
+            Returns None on error.
+        """
+        response = self._make_request("/api/v1/reports/incidents")
+        if not response or not isinstance(response, dict):
+            return None
+        return response
+    
+    def get_host_report(self) -> dict[str, Any] | None:
+        """
+        Phase 9.3: Get host report from backend.
+        
+        Returns:
+            Dict with host report data.
+            Returns None on error.
+        """
+        response = self._make_request("/api/v1/reports/hosts")
+        if not response or not isinstance(response, dict):
+            return None
+        return response
 
     def _poll_loop(self) -> None:
         """Background thread loop for REST polling."""

@@ -156,6 +156,24 @@ class MainWindow:
             command=self._on_export_report,
             state=tk.DISABLED,
         )
+        # Phase 9.3: New export menu items
+        export_submenu = tk.Menu(
+            self.file_menu, tearoff=0, bg=menu_bg, fg=menu_fg,
+            activebackground=menu_active_bg, activeforeground="#000000",
+            disabledforeground=menu_disabled_fg
+        )
+        self.file_menu.add_cascade(label="Export", menu=export_submenu)
+        export_submenu.add_command(
+            label="Incident Report...",
+            command=self._on_export_incident_report,
+            state=tk.DISABLED,
+        )
+        export_submenu.add_command(
+            label="Host Report...",
+            command=self._on_export_host_report,
+            state=tk.DISABLED,
+        )
+        self._export_submenu = export_submenu  # Store reference for enabling/disabling
         self.file_menu.add_separator()
         # Phase 5.5: Export options
         self.file_menu.add_command(label="Export Timeline...", command=self._on_export_timeline)
@@ -571,9 +589,17 @@ class MainWindow:
         if backend_enabled and backend_connected:
             self.view_menu.entryconfig(self._host_scope_menu_item, state=tk.NORMAL)
             self.backend_menu.entryconfig(self._host_status_menu_item, state=tk.NORMAL)
+            # Phase 9.3: Enable export menu items when backend connected
+            if hasattr(self, "_export_submenu"):
+                self._export_submenu.entryconfig("Incident Report...", state=tk.NORMAL)
+                self._export_submenu.entryconfig("Host Report...", state=tk.NORMAL)
         else:
             self.view_menu.entryconfig(self._host_scope_menu_item, state=tk.DISABLED)
             self.backend_menu.entryconfig(self._host_status_menu_item, state=tk.DISABLED)
+            # Phase 9.3: Disable export menu items when backend not connected
+            if hasattr(self, "_export_submenu"):
+                self._export_submenu.entryconfig("Incident Report...", state=tk.DISABLED)
+                self._export_submenu.entryconfig("Host Report...", state=tk.DISABLED)
         
         if not backend_enabled:
             # Backend disabled - all actions available (local mode)
@@ -825,6 +851,86 @@ class MainWindow:
         self.latest_result = None
         self.file_menu.entryconfig("Export Report...", state=tk.DISABLED)
         self.set_status("Findings cleared")
+    
+    def _on_export_incident_report(self) -> None:
+        """Phase 9.3: Handle File > Export > Incident Report..."""
+        backend_client = getattr(self.dashboard_view, "_backend_client", None)
+        if not backend_client:
+            messagebox.showerror(
+                "Backend Not Connected",
+                "Backend must be enabled and connected to export reports."
+            )
+            return
+        
+        from soc_audit.gui.dialogs.export_report_dialog import ExportReportDialog
+        ExportReportDialog(self.root, self._handle_report_export)
+    
+    def _on_export_host_report(self) -> None:
+        """Phase 9.3: Handle File > Export > Host Report..."""
+        backend_client = getattr(self.dashboard_view, "_backend_client", None)
+        if not backend_client:
+            messagebox.showerror(
+                "Backend Not Connected",
+                "Backend must be enabled and connected to export reports."
+            )
+            return
+        
+        from soc_audit.gui.dialogs.export_report_dialog import ExportReportDialog
+        # Pre-select host report type
+        dialog = ExportReportDialog(self.root, self._handle_report_export)
+        dialog.report_type_var.set("hosts")
+    
+    def _handle_report_export(self, report_type: str, format_type: str, file_path: str) -> None:
+        """Phase 9.3: Handle report export callback."""
+        backend_client = getattr(self.dashboard_view, "_backend_client", None)
+        if not backend_client:
+            messagebox.showerror("Error", "Backend not connected")
+            return
+        
+        try:
+            # Fetch report data
+            if report_type == "incidents":
+                report_data = backend_client.get_incident_report()
+            elif report_type == "hosts":
+                report_data = backend_client.get_host_report()
+            else:
+                messagebox.showerror("Error", f"Unknown report type: {report_type}")
+                return
+            
+            if not report_data:
+                messagebox.showerror("Error", "Failed to fetch report data from backend")
+                return
+            
+            # Format and write file
+            if format_type == "json":
+                with open(file_path, "w", encoding="utf-8") as f:
+                    json.dump(report_data, f, indent=2, ensure_ascii=False)
+            elif format_type == "txt":
+                from soc_audit.reporting.text_reports import (
+                    format_host_report_text,
+                    format_incident_report_text,
+                )
+                if report_type == "incidents":
+                    text_content = format_incident_report_text(report_data)
+                else:
+                    text_content = format_host_report_text(report_data)
+                with open(file_path, "w", encoding="utf-8") as f:
+                    f.write(text_content)
+            else:
+                messagebox.showerror("Error", f"Unknown format: {format_type}")
+                return
+            
+            # Log to timeline
+            report_name = "Incident" if report_type == "incidents" else "Host"
+            self.dashboard_view._add_timeline_entry(
+                f"[REPORT] {report_name} report exported to {file_path}",
+                "info",
+                "export"
+            )
+            
+            messagebox.showinfo("Success", f"Report exported successfully to:\n{file_path}")
+        except Exception as e:
+            messagebox.showerror("Export Error", f"Failed to export report:\n{str(e)}")
 
     def _on_window_close(self) -> None:
         """Handle window close event with cleanup."""

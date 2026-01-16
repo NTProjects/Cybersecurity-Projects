@@ -125,6 +125,29 @@ class BackendStorage(ABC):
         """
         pass
 
+    @abstractmethod
+    def get_incident_report_data(self) -> dict[str, Any]:
+        """
+        Phase 9.3: Get incident report data for export.
+        
+        Returns:
+            Dict with summary metrics and incident list.
+        """
+        pass
+
+    @abstractmethod
+    def get_host_report_data(self, heartbeat_interval: int = 10) -> dict[str, Any]:
+        """
+        Phase 9.3: Get host report data for export.
+        
+        Args:
+            heartbeat_interval: Heartbeat interval for status calculation.
+        
+        Returns:
+            Dict with summary metrics and host list.
+        """
+        pass
+
 
 class SQLiteBackendStorage(BackendStorage):
     """SQLite backend storage with multi-host support."""
@@ -762,6 +785,104 @@ class SQLiteBackendStorage(BackendStorage):
             "resolved_count": resolved_count,
             "open_count": open_count,
             "aging_buckets": aging_buckets,
+        }
+    
+    def get_incident_report_data(self) -> dict[str, Any]:
+        """
+        Phase 9.3: Get incident report data for export.
+        
+        Returns:
+            Dict with summary metrics and incident list.
+        """
+        # Get metrics from existing method
+        metrics = self.get_incident_metrics()
+        
+        # Get all incidents
+        incidents = self.list_incidents()
+        
+        # Format incidents for report
+        incident_list = []
+        for incident in incidents:
+            incident_list.append({
+                "incident_id": incident["id"],
+                "status": incident["status"],
+                "severity_max": incident["severity_max"],
+                "rba_max": incident.get("rba_max"),
+                "alert_count": incident.get("alert_count", 0),
+                "host_id": incident.get("host_id"),
+                "created_ts": incident["created_ts"],
+                "updated_ts": incident["updated_ts"],
+            })
+        
+        return {
+            "total_incidents": len(incidents),
+            "open_incidents": metrics["open_count"],
+            "closed_incidents": metrics["resolved_count"],
+            "mttr_seconds": metrics["mttr_seconds"],
+            "aging_buckets": metrics["aging_buckets"],
+            "incidents": incident_list,
+        }
+    
+    def get_host_report_data(self, heartbeat_interval: int = 10) -> dict[str, Any]:
+        """
+        Phase 9.3: Get host report data for export.
+        
+        Args:
+            heartbeat_interval: Heartbeat interval for status calculation.
+        
+        Returns:
+            Dict with summary metrics and host list.
+        """
+        hosts = self.list_hosts()
+        
+        # Calculate status counts
+        online_count = 0
+        offline_count = 0
+        
+        # Get incident counts per host
+        all_incidents = self.list_incidents()
+        host_incident_counts: dict[str, dict[str, int]] = {}
+        
+        for incident in all_incidents:
+            host_id = incident.get("host_id")
+            if not host_id:
+                continue
+            
+            if host_id not in host_incident_counts:
+                host_incident_counts[host_id] = {"total": 0, "open": 0}
+            
+            host_incident_counts[host_id]["total"] += 1
+            if incident["status"] == "open":
+                host_incident_counts[host_id]["open"] += 1
+        
+        # Format hosts for report
+        host_list = []
+        for host in hosts:
+            host_id = host["host_id"]
+            status = self.get_host_status(host_id, heartbeat_interval)
+            
+            if status == "ONLINE":
+                online_count += 1
+            else:
+                offline_count += 1
+            
+            counts = host_incident_counts.get(host_id, {"total": 0, "open": 0})
+            
+            host_list.append({
+                "host_id": host_id,
+                "host_name": host.get("host_name"),
+                "status": status,
+                "first_seen_ts": host["first_seen_ts"],
+                "last_seen_ts": host["last_seen_ts"],
+                "incident_count": counts["total"],
+                "open_incidents": counts["open"],
+            })
+        
+        return {
+            "total_hosts": len(hosts),
+            "online_hosts": online_count,
+            "offline_hosts": offline_count,
+            "hosts": host_list,
         }
 
     def get_host_status(self, host_id: str, heartbeat_interval: int = 10) -> str:
