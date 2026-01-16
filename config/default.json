@@ -88,5 +88,14 @@
     "incidents": {
       "group_window_seconds": 300
     }
+  },
+  "agent": {
+    "enabled": false,
+    "host_id": "agent-1",
+    "host_name": "Example Host",
+    "server_url": "http://127.0.0.1:8001",
+    "api_key": "AGENT_KEY",
+    "heartbeat_interval": 10,
+    "batch_interval": 5
   }
 }
