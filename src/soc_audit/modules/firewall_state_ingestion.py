@@ -12,8 +12,7 @@ import subprocess
 from pathlib import Path
 from typing import Any
 
-from soc_audit.core.interfaces import Finding, ModuleResult
-from soc_audit.core.models import BaseModule
+from soc_audit.core.interfaces import BaseModule, Finding, ModuleResult
 
 
 class FirewallStateIngestion(BaseModule):
