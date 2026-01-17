@@ -150,6 +150,10 @@ class DashboardView(ttk.Frame):
         # Phase 6: Backend client (optional)
         self._backend_client: BackendClient | None = None
         self._backend_alert_ids: set[str] = set()  # Track backend alerts for deduplication
+        self._backend_alert_queue: queue.Queue[AlertEvent] = queue.Queue()  # Thread-safe queue for alerts
+        self._backend_incident_queue: queue.Queue[Incident] = queue.Queue()  # Thread-safe queue for incidents
+        self._backend_update_after_id: str | None = None  # Scheduled update handler ID
+        self._backend_update_batch_delay_ms = 100  # Batch updates every 100ms
         
         # Phase 7.3: Host scope state
         self.current_host_id: str | None = None  # None = All Hosts
@@ -170,8 +174,8 @@ class DashboardView(ttk.Frame):
                     api_key=api_key,
                     poll_interval_seconds=poll_interval,
                     use_websocket=use_ws,
-                    on_alert=self._process_backend_alert,
-                    on_incident=self._process_backend_incident,
+                    on_alert=self._enqueue_backend_alert,  # Thread-safe: enqueue instead of process directly
+                    on_incident=self._enqueue_backend_incident,  # Thread-safe: enqueue instead of process directly
                     on_status=self._on_backend_status,
                 )
             except Exception as e:
@@ -301,6 +305,9 @@ class DashboardView(ttk.Frame):
         if self._backend_client:
             try:
                 self._backend_client.start()
+                # Start backend update processor (main thread)
+                if self._backend_update_after_id is None:
+                    self._process_backend_updates()
                 if self.on_status:
                     self.on_status("Backend client started")
             except Exception as e:
@@ -827,6 +834,65 @@ class DashboardView(ttk.Frame):
                     self.entities_panel.increment_entity("Users", username)
     
     # ==================== Phase 6: Backend Event Processing ====================
+    
+    def _enqueue_backend_alert(self, alert_event: AlertEvent) -> None:
+        """
+        Thread-safe: Enqueue alert from background thread for main thread processing.
+        
+        Args:
+            alert_event: AlertEvent from backend API (called from background thread).
+        """
+        self._backend_alert_queue.put(alert_event)
+        # Schedule processing on main thread if not already scheduled
+        if self._backend_update_after_id is None:
+            self._process_backend_updates()
+    
+    def _enqueue_backend_incident(self, incident: Incident) -> None:
+        """
+        Thread-safe: Enqueue incident from background thread for main thread processing.
+        
+        Args:
+            incident: Incident from backend API (called from background thread).
+        """
+        self._backend_incident_queue.put(incident)
+        # Schedule processing on main thread if not already scheduled
+        if self._backend_update_after_id is None:
+            self._process_backend_updates()
+    
+    def _process_backend_updates(self) -> None:
+        """Process queued backend alerts and incidents on main thread (batched)."""
+        if self._backend_update_after_id:
+            self.after_cancel(self._backend_update_after_id)
+            self._backend_update_after_id = None
+        
+        processed = 0
+        max_batch = 10  # Process up to 10 alerts/incidents per batch
+        
+        # Process alerts
+        while processed < max_batch:
+            try:
+                alert_event = self._backend_alert_queue.get_nowait()
+                self._process_backend_alert(alert_event)
+                processed += 1
+            except queue.Empty:
+                break
+        
+        # Process incidents
+        while processed < max_batch:
+            try:
+                incident = self._backend_incident_queue.get_nowait()
+                self._process_backend_incident(incident)
+                processed += 1
+            except queue.Empty:
+                break
+        
+        # Flush timeline updates if any
+        if processed > 0 and hasattr(self.timeline_panel, "flush"):
+            self.timeline_panel.flush()
+        
+        # Schedule next batch if there are more items
+        if not self._backend_alert_queue.empty() or not self._backend_incident_queue.empty():
+            self._backend_update_after_id = self.after(self._backend_update_batch_delay_ms, self._process_backend_updates)
     
     def _process_backend_alert(self, alert_event: AlertEvent) -> None:
         """

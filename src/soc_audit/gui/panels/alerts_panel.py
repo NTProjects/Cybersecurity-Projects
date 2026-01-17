@@ -380,10 +380,12 @@ class AlertsPanel(ttk.LabelFrame):
         if alert_id:
             self.tree.set(item_id, "alert_id", alert_id)
         
-        # Auto-scroll to show newest (top)
-        children = self.tree.get_children()
-        if children:
-            self.tree.see(children[0])
+        # Performance: Only auto-scroll if user hasn't manually scrolled
+        # (Check if selection is at top - if so, likely user wants to see newest)
+        # Disabled auto-scroll to reduce lag - user can manually scroll to top if needed
+        # children = self.tree.get_children()
+        # if children:
+        #     self.tree.see(children[0])
 
     def set_placeholder_data(self) -> None:
         """Set placeholder alert data for demonstration."""

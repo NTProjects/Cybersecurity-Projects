@@ -48,6 +48,7 @@ class TimelinePanel(ttk.LabelFrame):
         super().__init__(parent, text="Activity Timeline", padding=10)
         self.max_events = max_events  # Performance: Increased from 100 to 500
         self.event_count = 0
+        self._text_state_normal = False  # Track state to reduce toggles
         self._build_ui()
 
     def _build_ui(self) -> None:
@@ -102,7 +103,7 @@ class TimelinePanel(ttk.LabelFrame):
         timestamp: datetime | None = None,
     ) -> None:
         """
-        Append an event entry to the timeline.
+        Append an event entry to the timeline (optimized for performance).
 
         Args:
             finding: The Finding object to display.
@@ -116,7 +117,10 @@ class TimelinePanel(ttk.LabelFrame):
         severity = finding.severity.lower()
         severity_tag = severity if severity in SEVERITY_COLORS else "info"
 
-        self.text.config(state=tk.NORMAL)
+        # Performance: Only toggle state if needed (reduce expensive state changes)
+        if not self._text_state_normal:
+            self.text.config(state=tk.NORMAL)
+            self._text_state_normal = True
 
         # Clear placeholder on first event
         if self.event_count == 0:
@@ -136,15 +140,25 @@ class TimelinePanel(ttk.LabelFrame):
             self.text.delete("1.0", "2.0")
             self.event_count -= 1
 
-        # Auto-scroll to bottom (newest)
-        self.text.see(tk.END)
-        self.text.config(state=tk.DISABLED)
+        # Performance: Disable auto-scroll to reduce lag (user can manually scroll)
+        # Only scroll on every 10th event or at end to reduce redraws
+        # if self.event_count % 10 == 0 or self.event_count == 1:
+        #     self.text.see(tk.END)
+    
+    def flush(self) -> None:
+        """Flush pending updates and restore text widget state if needed."""
+        if self._text_state_normal:
+            self.text.config(state=tk.DISABLED)
+            self._text_state_normal = False
 
     def clear(self) -> None:
         """Clear the timeline and show placeholder."""
-        self.text.config(state=tk.NORMAL)
+        if not self._text_state_normal:
+            self.text.config(state=tk.NORMAL)
+            self._text_state_normal = True
         self.text.delete("1.0", tk.END)
         self.text.config(state=tk.DISABLED)
+        self._text_state_normal = False
         self.event_count = 0
         self._show_placeholder()
 
