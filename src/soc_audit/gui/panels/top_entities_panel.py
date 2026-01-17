@@ -11,6 +11,8 @@ from collections import defaultdict
 from tkinter import ttk
 from typing import TYPE_CHECKING, Any
 
+# Note: self.after() is available via Tkinter widget inheritance
+
 if TYPE_CHECKING:
     from soc_audit.core.interfaces import Finding
 
@@ -46,6 +48,11 @@ class TopEntitiesPanel(ttk.LabelFrame):
         self.ip_counts: dict[str, int] = defaultdict(int)
         self.user_counts: dict[str, int] = defaultdict(int)
         self.port_counts: dict[str, int] = defaultdict(int)
+        
+        # Performance: Throttle entity updates (rebuilds are expensive!)
+        self._update_count = 0
+        self._refresh_pending = False
+        self._refresh_delay_ms = 500  # Refresh every 500ms max
         
         self._build_ui()
 
@@ -107,10 +114,10 @@ class TopEntitiesPanel(ttk.LabelFrame):
 
     def update_from_finding(self, finding: Finding) -> None:
         """
-        Update entity counts from a finding's evidence.
+        Update entity counts from a finding's evidence (throttled for performance).
 
         Extracts IPs, users, and ports from the finding's evidence
-        and updates the aggregation counters.
+        and updates the aggregation counters. UI refresh is throttled.
 
         Args:
             finding: The Finding object to process.
@@ -126,12 +133,16 @@ class TopEntitiesPanel(ttk.LabelFrame):
         # Extract ports
         self._extract_ports(evidence, finding.title)
 
-        # Refresh displays
-        self._refresh_all_trees()
+        # Performance: Throttle UI refresh (rebuilding trees is expensive!)
+        self._update_count += 1
+        if not self._refresh_pending:
+            self._refresh_pending = True
+            # Schedule refresh after delay (batches multiple updates)
+            self.after(self._refresh_delay_ms, self._throttled_refresh)
 
     def increment_entity(self, entity_type: str, entity_name: str) -> None:
         """
-        Increment count for a specific entity.
+        Increment count for a specific entity (throttled for performance).
 
         Args:
             entity_type: Type of entity ("IPs", "Users", "Ports").
@@ -139,13 +150,17 @@ class TopEntitiesPanel(ttk.LabelFrame):
         """
         if entity_type == "IPs":
             self.ip_counts[entity_name] += 1
-            self._refresh_tree(self.ip_tree, self.ip_counts)
         elif entity_type == "Users":
             self.user_counts[entity_name] += 1
-            self._refresh_tree(self.user_tree, self.user_counts)
         elif entity_type == "Ports":
             self.port_counts[entity_name] += 1
-            self._refresh_tree(self.port_tree, self.port_counts)
+        
+        # Performance: Throttle UI refresh (rebuilding trees is expensive!)
+        self._update_count += 1
+        if not self._refresh_pending:
+            self._refresh_pending = True
+            # Schedule refresh after delay (batches multiple updates)
+            self.after(self._refresh_delay_ms, self._throttled_refresh)
 
     def _extract_ips(self, evidence: dict[str, Any]) -> None:
         """Extract IP addresses from evidence."""
@@ -222,6 +237,11 @@ class TopEntitiesPanel(ttk.LabelFrame):
             return f"{port} ({well_known[port]})"
         return str(port)
 
+    def _throttled_refresh(self) -> None:
+        """Throttled refresh of all trees (called after delay to batch updates)."""
+        self._refresh_pending = False
+        self._refresh_all_trees()
+    
     def _refresh_all_trees(self) -> None:
         """Refresh all entity trees with current counts."""
         self._refresh_tree(self.ip_tree, self.ip_counts)

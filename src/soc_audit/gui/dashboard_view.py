@@ -153,7 +153,7 @@ class DashboardView(ttk.Frame):
         self._backend_alert_queue: queue.Queue[AlertEvent] = queue.Queue()  # Thread-safe queue for alerts
         self._backend_incident_queue: queue.Queue[Incident] = queue.Queue()  # Thread-safe queue for incidents
         self._backend_update_after_id: str | None = None  # Scheduled update handler ID
-        self._backend_update_batch_delay_ms = 100  # Batch updates every 100ms
+        self._backend_update_batch_delay_ms = 250  # Performance: Increased to 250ms (was 100ms) to reduce lag
         
         # Phase 7.3: Host scope state
         self.current_host_id: str | None = None  # None = All Hosts
@@ -866,7 +866,7 @@ class DashboardView(ttk.Frame):
             self._backend_update_after_id = None
         
         processed = 0
-        max_batch = 10  # Process up to 10 alerts/incidents per batch
+        max_batch = 5  # Performance: Reduced to 5 items per batch (was 10)
         
         # Process alerts
         while processed < max_batch:

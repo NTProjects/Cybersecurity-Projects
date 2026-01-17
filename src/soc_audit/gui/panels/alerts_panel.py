@@ -355,6 +355,21 @@ class AlertsPanel(ttk.LabelFrame):
         if alert_event and alert_id:
             self.alert_events_cache[alert_id] = alert_event
         
+        # Performance: Limit alerts panel to 100 items max (treeview insert at 0 is O(n)!)
+        MAX_ALERTS = 100
+        children = self.tree.get_children()
+        if len(children) >= MAX_ALERTS:
+            # Remove oldest item (last in list) to make room
+            oldest_item = children[-1]
+            # Get alert_id before deleting
+            oldest_alert_id = self.tree.set(oldest_item, "alert_id")
+            self.tree.delete(oldest_item)
+            # Remove from caches to prevent memory leak
+            if len(self.findings_cache) > 0:
+                self.findings_cache.pop()
+            if oldest_alert_id and oldest_alert_id in self.alert_events_cache:
+                del self.alert_events_cache[oldest_alert_id]
+        
         # Insert at the top for newest-first ordering
         # Note: alert_id is first column (hidden), then visible columns
         item_id = self.tree.insert(
