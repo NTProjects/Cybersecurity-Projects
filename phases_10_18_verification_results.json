@@ -1,14 +1,14 @@
 {
   "phase_status": {
-    "10": "PASS",
+    "10": "PARTIAL",
     "11": "PARTIAL",
     "12": "PASS",
     "13": "PASS",
-    "14": "PARTIAL",
-    "15": "PARTIAL",
-    "16": "PARTIAL",
-    "17": "PARTIAL",
-    "18": "PARTIAL"
+    "14": "FAIL",
+    "15": "PASS",
+    "16": "PASS",
+    "17": "PASS",
+    "18": "PASS"
   },
   "detailed_results": {
     "10": {
@@ -24,7 +24,7 @@
         "D": "PASS"
       },
       "10.3": {
-        "A": "PASS",
+        "A": "PARTIAL",
         "B": "PASS",
         "C": "PASS"
       },
@@ -77,56 +77,63 @@
     },
     "14": {
       "1": {
-        "status": "PARTIAL",
-        "note": "Requires detailed runtime verification"
+        "error": "'charmap' codec can't encode character '\\u2192' in position 37: character maps to <undefined>"
       },
       "2": {
-        "status": "PARTIAL",
-        "note": "Requires detailed runtime verification"
+        "A": "PASS",
+        "B": "PASS",
+        "C": "PASS"
       }
     },
     "15": {
       "1": {
-        "status": "PARTIAL",
-        "note": "Requires detailed runtime verification"
+        "A": "PASS",
+        "B": "PASS",
+        "C": "PASS"
       },
       "2": {
-        "status": "PARTIAL",
-        "note": "Requires detailed runtime verification"
+        "A": "PASS",
+        "B": "PASS",
+        "C": "PASS"
       }
     },
     "16": {
       "1": {
-        "status": "PARTIAL",
-        "note": "Requires detailed runtime verification"
+        "A": "PASS",
+        "B": "PASS",
+        "C": "PASS"
       },
       "2": {
-        "status": "PARTIAL",
-        "note": "Requires detailed runtime verification"
+        "A": "PASS",
+        "B": "PASS",
+        "C": "PASS"
       }
     },
     "17": {
       "1": {
-        "status": "PARTIAL",
-        "note": "Requires detailed runtime verification"
+        "A": "PASS",
+        "B": "PASS",
+        "C": "PASS"
       },
       "2": {
-        "status": "PARTIAL",
-        "note": "Requires detailed runtime verification"
+        "A": "PASS",
+        "B": "PASS"
       }
     },
     "18": {
       "1": {
-        "status": "PARTIAL",
-        "note": "Requires detailed runtime verification"
+        "A": "PASS",
+        "B": "PASS"
       },
       "2": {
-        "status": "PARTIAL",
-        "note": "Requires detailed runtime verification"
+        "A": "PASS",
+        "B": "PASS",
+        "C": "PASS"
       },
       "3": {
-        "status": "PARTIAL",
-        "note": "Requires detailed runtime verification"
+        "A": "PASS",
+        "B": "PASS",
+        "C": "PASS"
       }
     }
   },
@@ -188,7 +195,7 @@
       "10.2.B": {
         "example_entry": {
           "id": 6,
-          "timestamp": "2026-01-17T05:07:38.988621",
+          "timestamp": "2026-01-17T05:08:10.217852",
           "user_id": "test_user_123",
           "role": "analyst",
           "operation": "test_operation",
@@ -198,8 +205,8 @@
           "action": "read",
           "result": "success",
           "details": null,
-          "previous_hash": "60414de80eeb8a6ecb36885294c4ce958ea4e04798f0e11530c6383dcd728803",
-          "entry_hash": "970602a83526eab213b08dd1431e99dc20eb4b37c293701bc274b86d72cb71f9"
+          "previous_hash": "30e241cb06dfddf07fcd4b49f9aedeafd18b3fde360ba7640d24238bba131f54",
+          "entry_hash": "d549d60aecc88bc29b9104ce84c518cb7d981a9dec2f6748bfee09f49d1712b0"
         },
         "has_all_fields": true
       },
@@ -212,8 +219,13 @@
         "errors": []
       },
       "10.3.A": {
-        "concurrent_reads": 5,
-        "errors": []
+        "read_successes": 4,
+        "errors": [
+          [
+            2,
+            "bad parameter or other API misuse"
+          ]
+        ]
       },
       "10.3.B": {
         "methods_with_rollback": [
@@ -230,11 +242,11 @@
       "10.4.A": {
         "log_format": "JSON",
         "example": {
-          "timestamp": "2026-01-17T05:07:40.210525",
+          "timestamp": "2026-01-17T05:08:11.426346",
           "level": "INFO",
           "logger": "test",
           "message": "Test message",
-          "correlation_id": "33ffc459",
+          "correlation_id": "3d696179",
           "module": "verify_phase10",
           "function": "test_10_4_observability",
           "line": 514,
@@ -251,7 +263,7 @@
         "has_context": true,
         "has_exception": true,
         "example": {
-          "timestamp": "2026-01-17T05:07:40.211112",
+          "timestamp": "2026-01-17T05:08:11.426346",
           "level": "ERROR",
           "logger": "test_error",
           "message": "Error occurred",
@@ -443,16 +455,211 @@
     },
     "13.3.C": {
       "risk_scoring": true
+    },
+    "14.1.A": {
+      "cisa_mapping": true,
+      "cpgs": [
+        "CPG-1"
+      ]
+    },
+    "14.1.B": {
+      "nist_mapping": true,
+      "cis_mapping": true,
+      "nist_count": 3,
+      "cis_count": 2
+    },
+    "14.2.A": {
+      "timestamped": true,
+      "evidence_id": "evidence_20260117_051740_7890"
+    },
+    "14.2.B": {
+      "immutable": true,
+      "no_update_methods": true
+    },
+    "14.2.C": {
+      "exportable": true,
+      "zip_file": true,
+      "has_manifest": true
+    },
+    "15.1.A": {
+      "query_works": true,
+      "events_returned": 0
+    },
+    "15.1.B": {
+      "timeline_works": true,
+      "sorted": true,
+      "events": 0
+    },
+    "15.1.C": {
+      "pivoting_works": true,
+      "result_keys": [
+        "entity_type",
+        "entity_id",
+        "time_window_hours",
+        "event_count",
+        "related_entities",
+        "related_alerts",
+        "timeline"
+      ]
+    },
+    "15.2.A": {
+      "capture_works": true,
+      "snapshot_id": "snapshot_test_host_20260117_051740"
+    },
+    "15.2.B": {
+      "change_tracking": true,
+      "comparison": {
+        "snapshot1": "snapshot_test_host_20260117_051740",
+        "snapshot2": "snapshot_test_host_20260117_051741",
+        "changes": {
+          "new_processes": [
+            {
+              "name": "tasklist.exe",
+              "pid": "29252",
+              "memory": "12"
+            }
+          ],
+          "terminated_processes": [
+            {
+              "name": "splunk.exe",
+              "pid": "29524",
+              "memory": "7"
+            },
+            {
+              "name": "tasklist.exe",
+              "pid": "21804",
+              "memory": "12"
+            },
+            {
+              "name": "btool.exe",
+              "pid": "19940",
+              "memory": "5"
+            },
+            {
+              "name": "splunkd.exe",
+              "pid": "2876",
+              "memory": "41"
+            }
+          ],
+          "new_ports": [],
+          "closed_ports": [],
+          "new_connections": [],
+          "closed_connections": [
+            {
+              "protocol": "tcp",
+              "local_address": "127.0.0.1",
+              "local_port": "8089",
+              "remote_address": "127.0.0.1",
+              "remote_port": "49210",
+              "state": "ESTABLISHED",
+              "pid": "4872"
+            },
+            {
+              "protocol": "tcp",
+              "local_address": "127.0.0.1",
+              "local_port": "49210",
+              "remote_address": "127.0.0.1",
+              "remote_port": "8089",
+              "state": "ESTABLISHED",
+              "pid": "15324"
+            }
+          ]
+        },
+        "summary": {
+          "new_processes": 1,
+          "terminated_processes": 4,
+          "new_ports": 0,
+          "closed_ports": 0,
+          "new_connections": 0,
+          "closed_connections": 2
+        }
+      }
+    },
+    "15.2.C": {
+      "integrity": true,
+      "valid_json": true
+    },
+    "16.1.A": {
+      "actions_defined": true,
+      "actions": [
+        "isolate_host",
+        "block_ip",
+        "kill_process"
+      ]
+    },
+    "16.1.B": {
+      "fail_safe": true,
+      "dry_run": true
+    },
+    "16.1.C": {
+      "global_disable": true,
+      "dry_run_default": true
+    },
+    "16.2.A": {
+      "admin_required": true
+    },
+    "16.2.B": {
+      "audit_trail": true
+    },
+    "16.2.C": {
+      "dry_run": true
+    },
+    "17.1.A": {
+      "isolation": true,
+      "tenants_created": 2
+    },
+    "17.1.B": {
+      "tenant_rbac": true,
+      "access_control": true
+    },
+    "17.1.C": {
+      "no_cross_tenant": true
+    },
+    "17.2.A": {
+      "abstract_base": true,
+      "extensible": true
+    },
+    "17.2.B": {
+      "migration_path": true,
+      "interface_defined": true
+    },
+    "18.1.A": {
+      "risk_posture": true,
+      "score": 0
+    },
+    "18.1.B": {
+      "executive_view": true
+    },
+    "18.2.A": {
+      "read_only": true,
+      "no_write": true
+    },
+    "18.2.B": {
+      "export_mode": true,
+      "read_only": true
+    },
+    "18.2.C": {
+      "no_escalation": true
+    },
+    "18.3.A": {
+      "siem_export": true,
+      "schema_valid": true
+    },
+    "18.3.B": {
+      "soar_hooks": true,
+      "idempotent": true
+    },
+    "18.3.C": {
+      "ticketing": true,
+      "reliable": true
     }
   },
-  "blocking_issues": [],
-  "downgrades_required": [
-    "Phase 11",
-    "Phase 14",
-    "Phase 15",
-    "Phase 16",
-    "Phase 17",
-    "Phase 18"
+  "blocking_issues": [
+    "Phase 14"
   ],
-  "timestamp": "2026-01-17T05:08:03.006112"
+  "downgrades_required": [
+    "Phase 10",
+    "Phase 11"
+  ],
+  "timestamp": "2026-01-17T05:17:41.913014"
 }
