@@ -11,6 +11,8 @@ import logging
 from datetime import datetime
 from typing import Any
 
+from pydantic import BaseModel
+
 from fastapi import APIRouter, Depends, HTTPException, Request
 
 from soc_audit.core.response_playbooks import ResponsePlaybook
@@ -24,7 +26,7 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/v1/response", tags=["response"])
 
 
-class ResponseRequest:
+class ResponseRequest(BaseModel):
     """Request schema for response actions."""
     action: str  # isolate_host, block_ip, kill_process
     target: str  # host_id, ip_address, or process_id
