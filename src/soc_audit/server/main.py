@@ -16,7 +16,7 @@ from soc_audit.server.incident_engine import ServerIncidentEngine
 from soc_audit.server.logging_config import setup_logging, set_correlation_id, get_correlation_id
 from soc_audit.server.middleware.audit_middleware import AuditLoggingMiddleware
 from soc_audit.server.middleware.correlation_middleware import CorrelationIDMiddleware
-from soc_audit.server.routes import alerts, heartbeat, hosts, incidents, ingest, ingest_batch, reports
+from soc_audit.server.routes import alerts, heartbeat, hosts, incidents, ingest, ingest_batch, reports, response
 from soc_audit.server.routes.ws import websocket_stream
 from soc_audit.server.storage import BackendStorage, SQLiteBackendStorage
 from soc_audit.server.ws_manager import WebSocketManager
@@ -151,6 +151,7 @@ app.include_router(hosts.router)
 app.include_router(heartbeat.router)
 app.include_router(ingest_batch.router)
 app.include_router(reports.router)  # Phase 9.3: Reporting endpoints
+app.include_router(response.router)  # Phase 16: Active Response endpoints
 
 # Register WebSocket route directly (not via router)
 app.add_api_websocket_route("/ws/stream", websocket_stream)
