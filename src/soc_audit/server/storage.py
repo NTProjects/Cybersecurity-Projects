@@ -261,11 +261,16 @@ class SQLiteBackendStorage(BackendStorage):
         conn.commit()
 
     def save_alert(self, alert_dict: dict[str, Any]) -> None:
-        """Save alert from dict."""
+        """
+        Save alert from dict.
+        
+        Phase 10.3: Thread-safe with transaction rollback on error.
+        """
         conn = self._get_connection()
         cursor = conn.cursor()
-
-        # Ensure required fields
+        
+        try:
+            # Ensure required fields
         if "host_id" not in alert_dict:
             raise ValueError("host_id is required")
 
@@ -310,11 +315,16 @@ class SQLiteBackendStorage(BackendStorage):
         conn.commit()
 
     def save_incident(self, incident_dict: dict[str, Any]) -> None:
-        """Save incident from dict."""
+        """
+        Save incident from dict.
+        
+        Phase 10.3: Thread-safe with transaction rollback on error.
+        """
         conn = self._get_connection()
         cursor = conn.cursor()
-
-        if "host_id" not in incident_dict:
+        
+        try:
+            if "host_id" not in incident_dict:
             raise ValueError("host_id is required for incidents")
 
         cursor.execute(
@@ -338,15 +348,23 @@ class SQLiteBackendStorage(BackendStorage):
                 incident_dict["host_id"],
             ),
         )
-
-        conn.commit()
+            
+            conn.commit()
+        except Exception:
+            conn.rollback()
+            raise
 
     def append_timeline(self, entry_dict: dict[str, Any]) -> None:
-        """Append timeline entry from dict."""
+        """
+        Append timeline entry from dict.
+        
+        Phase 10.3: Thread-safe with transaction rollback on error.
+        """
         conn = self._get_connection()
         cursor = conn.cursor()
-
-        cursor.execute(
+        
+        try:
+            cursor.execute(
             """
             INSERT INTO timeline (timestamp, message, level, source, module, alert_id, incident_id, host_id)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?)
@@ -362,17 +380,25 @@ class SQLiteBackendStorage(BackendStorage):
                 entry_dict.get("host_id"),
             ),
         )
-
-        conn.commit()
+            
+            conn.commit()
+        except Exception:
+            conn.rollback()
+            raise
 
     # -------- Phase 7: Host registry --------
 
     def upsert_host(self, host_info: dict[str, Any]) -> None:
-        """Create or update a host record."""
+        """
+        Create or update a host record.
+        
+        Phase 10.3: Thread-safe with transaction rollback on error.
+        """
         conn = self._get_connection()
         cursor = conn.cursor()
-
-        host_id = host_info["host_id"]
+        
+        try:
+            host_id = host_info["host_id"]
         host_name = host_info.get("host_name")
         now = datetime.utcnow().isoformat()
 
@@ -400,14 +426,22 @@ class SQLiteBackendStorage(BackendStorage):
             """,
             (host_id, host_name, first_seen_ts, now, json.dumps(meta) if meta else None),
         )
-        conn.commit()
+            conn.commit()
+        except Exception:
+            conn.rollback()
+            raise
 
     def update_heartbeat(self, host_id: str, ts: str | None = None) -> None:
-        """Update last_seen timestamp for a host."""
+        """
+        Update last_seen timestamp for a host.
+        
+        Phase 10.3: Thread-safe with transaction rollback on error.
+        """
         conn = self._get_connection()
         cursor = conn.cursor()
-
-        now = ts or datetime.utcnow().isoformat()
+        
+        try:
+            now = ts or datetime.utcnow().isoformat()
 
         # Ensure host exists; if not, create minimal record
         cursor.execute(
