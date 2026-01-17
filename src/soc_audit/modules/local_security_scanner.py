@@ -75,8 +75,6 @@ class LocalSecurityScanner(BaseModule):
             "endpoint_protection": {
                 "enabled": True,
                 "check_antivirus_present": True,
-                "check_real_time_protection": True,
-                "check_tamper_protection": True,
             },
             "windows_defender": {
                 "enabled": True,
