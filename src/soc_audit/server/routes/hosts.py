@@ -5,6 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 
 from soc_audit.server.auth import get_role_from_request
 from soc_audit.server.deps import get_storage
+from soc_audit.server.rbac import require_analyst_or_admin
 from soc_audit.server.schemas.host import HostInfo, HostListResponse
 from soc_audit.server.storage import BackendStorage
 
@@ -14,23 +15,14 @@ router = APIRouter(prefix="/api/v1/hosts", tags=["hosts"])
 @router.get("/", response_model=HostListResponse)
 async def list_hosts(
     request: Request,
+    role: str = require_analyst_or_admin("read_hosts"),  # Phase 10.1: Enforce RBAC
     storage: BackendStorage = Depends(get_storage),
 ):
     """
     List all registered hosts.
 
-    Requires analyst or admin role.
+    Phase 10.1: Requires analyst or admin role.
     """
-    # Check auth (analyst/admin allowed for listing hosts)
-    try:
-        role = get_role_from_request(request)
-        if role not in ["analyst", "admin"]:
-            raise HTTPException(status_code=403, detail="Requires analyst or admin role")
-    except HTTPException:
-        raise
-    except Exception:
-        # Auth disabled - allow
-        pass
 
     hosts_data = storage.list_hosts()
     hosts = [
@@ -51,23 +43,14 @@ async def list_hosts(
 async def get_host(
     host_id: str,
     request: Request,
+    role: str = require_analyst_or_admin("read_hosts"),  # Phase 10.1: Enforce RBAC
     storage: BackendStorage = Depends(get_storage),
 ):
     """
     Get details for a specific host.
 
-    Requires analyst or admin role.
+    Phase 10.1: Requires analyst or admin role.
     """
-    # Check auth (analyst/admin allowed for host details)
-    try:
-        role = get_role_from_request(request)
-        if role not in ["analyst", "admin"]:
-            raise HTTPException(status_code=403, detail="Requires analyst or admin role")
-    except HTTPException:
-        raise
-    except Exception:
-        # Auth disabled - allow
-        pass
 
     host_data = storage.get_host(host_id)
     if not host_data:

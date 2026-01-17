@@ -8,6 +8,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request
 
 from soc_audit.server.auth import get_role_from_request
 from soc_audit.server.deps import get_storage, get_ws_manager
+from soc_audit.server.rbac import require_analyst_or_admin, require_admin
 from soc_audit.server.schemas import IncidentSchema, NoteRequest
 from soc_audit.server.schemas.incident_metrics import IncidentMetricsResponse
 from soc_audit.server.storage import BackendStorage
@@ -19,11 +20,16 @@ router = APIRouter(prefix="/api/v1/incidents", tags=["incidents"])
 @router.get("/", response_model=list[IncidentSchema])
 async def list_incidents(
     request: Request,
+    role: str = require_analyst_or_admin("read_incidents"),  # Phase 10.1: Enforce RBAC
     host_id: str | None = Query(None),
     status: str | None = Query(None),
     storage: BackendStorage = Depends(get_storage),
 ):
-    """List incidents with optional filters."""
+    """
+    List incidents with optional filters.
+    
+    Phase 10.1: Requires analyst or admin role.
+    """
     filters: dict[str, Any] = {}
     if host_id:
         filters["host_id"] = host_id
@@ -37,9 +43,15 @@ async def list_incidents(
 @router.get("/{incident_id}", response_model=IncidentSchema)
 async def get_incident(
     incident_id: str,
+    request: Request,
+    role: str = require_analyst_or_admin("read_incidents"),  # Phase 10.1: Enforce RBAC
     storage: BackendStorage = Depends(get_storage),
 ):
-    """Get a specific incident by ID."""
+    """
+    Get a specific incident by ID.
+    
+    Phase 10.1: Requires analyst or admin role.
+    """
     incident = storage.get_incident(incident_id)
     if not incident:
         raise HTTPException(status_code=404, detail="Incident not found")
@@ -50,23 +62,15 @@ async def get_incident(
 async def close_incident(
     incident_id: str,
     request: Request,
+    role: str = require_admin("close_incidents"),  # Phase 10.1: Enforce RBAC - admin only
     storage: BackendStorage = Depends(get_storage),
     ws_manager: WebSocketManager = Depends(get_ws_manager),
 ):
     """
     Close an incident.
 
-    Requires admin role.
+    Phase 10.1: Requires admin role (explicitly denied for analyst).
     """
-    # Check auth (admin only)
-    try:
-        role = get_role_from_request(request)
-        if role != "admin":
-            raise HTTPException(status_code=403, detail="Requires admin role")
-    except HTTPException:
-        raise
-    except Exception:
-        pass
 
     incident = storage.get_incident(incident_id)
     if not incident:
@@ -99,23 +103,14 @@ async def close_incident(
 @router.get("/metrics", response_model=IncidentMetricsResponse)
 async def get_incident_metrics(
     request: Request,
+    role: str = require_analyst_or_admin("view_metrics"),  # Phase 10.1: Enforce RBAC
     storage: BackendStorage = Depends(get_storage),
 ):
     """
     Phase 9.2: Get incident lifecycle metrics (MTTR, aging buckets).
     
-    Requires analyst or admin role.
+    Phase 10.1: Requires analyst or admin role.
     """
-    # Check auth (analyst or admin allowed)
-    try:
-        role = get_role_from_request(request)
-        if role not in ["analyst", "admin"]:
-            raise HTTPException(status_code=403, detail="Requires analyst or admin role")
-    except HTTPException:
-        raise
-    except Exception:
-        pass  # Auth disabled - allow
-
     metrics = storage.get_incident_metrics()
     return IncidentMetricsResponse(**metrics)
 
@@ -125,24 +120,15 @@ async def add_incident_note(
     incident_id: str,
     request: Request,
     note_request: NoteRequest,
+    role: str = require_analyst_or_admin("add_incident_notes"),  # Phase 10.1: Enforce RBAC
     storage: BackendStorage = Depends(get_storage),
     ws_manager: WebSocketManager = Depends(get_ws_manager),
 ):
     """
     Add a note to an incident.
 
-    Requires analyst or admin role.
+    Phase 10.1: Requires analyst or admin role.
     """
-    # Check auth
-    try:
-        role = get_role_from_request(request)
-        if role not in ["analyst", "admin"]:
-            raise HTTPException(status_code=403, detail="Requires analyst or admin role")
-    except HTTPException:
-        raise
-    except Exception:
-        pass
-
     incident = storage.get_incident(incident_id)
     if not incident:
         raise HTTPException(status_code=404, detail="Incident not found")
@@ -169,27 +155,3 @@ async def add_incident_note(
         await ws_manager.broadcast_json({"type": "incident", "data": updated_incident})
 
     return updated_incident
-
-
-@router.get("/metrics", response_model=IncidentMetricsResponse)
-async def get_incident_metrics(
-    request: Request,
-    storage: BackendStorage = Depends(get_storage),
-):
-    """
-    Phase 9.2: Get incident lifecycle metrics (MTTR, aging buckets).
-    
-    Requires analyst or admin role.
-    """
-    # Check auth (analyst or admin allowed)
-    try:
-        role = get_role_from_request(request)
-        if role not in ["analyst", "admin"]:
-            raise HTTPException(status_code=403, detail="Requires analyst or admin role")
-    except HTTPException:
-        raise
-    except Exception:
-        pass  # Auth disabled - allow
-
-    metrics = storage.get_incident_metrics()
-    return IncidentMetricsResponse(**metrics)

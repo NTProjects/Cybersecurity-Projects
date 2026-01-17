@@ -8,6 +8,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 
 from soc_audit.server.auth import get_role_from_request
 from soc_audit.server.deps import get_incident_engine, get_storage, get_ws_manager
+from soc_audit.server.rbac import require_agent_or_admin
 from soc_audit.server.incident_engine import ServerIncidentEngine
 from soc_audit.server.schemas.host import BatchIngestRequest, BatchIngestResponse
 from soc_audit.server.storage import BackendStorage
@@ -20,6 +21,7 @@ router = APIRouter(prefix="/api/v1/ingest", tags=["ingest"])
 async def ingest_batch(
     batch_request: BatchIngestRequest,
     request: Request,
+    role: str = require_agent_or_admin("ingest_batch_alerts"),  # Phase 10.1: Enforce RBAC
     storage: BackendStorage = Depends(get_storage),
     incident_engine: ServerIncidentEngine = Depends(get_incident_engine),
     ws_manager: WebSocketManager = Depends(get_ws_manager),
@@ -27,20 +29,10 @@ async def ingest_batch(
     """
     Ingest multiple alert events in a single batch.
 
-    Requires agent role (or admin for backward compatibility).
+    Phase 10.1: Requires agent or admin role.
     Each event must include required AlertEvent fields.
     Host will be auto-registered if not exists.
     """
-    # Check auth (agent or admin allowed for batch ingest)
-    try:
-        role = get_role_from_request(request)
-        if role not in ["agent", "admin"]:
-            raise HTTPException(status_code=403, detail="Requires agent or admin role")
-    except HTTPException:
-        raise
-    except Exception:
-        # Auth disabled - allow
-        pass
 
     host_id = batch_request.host_id
     if not host_id:

@@ -8,6 +8,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 
 from soc_audit.server.auth import get_role_from_request
 from soc_audit.server.deps import get_incident_engine, get_storage, get_ws_manager
+from soc_audit.server.rbac import require_analyst_or_admin
 from soc_audit.server.incident_engine import ServerIncidentEngine
 from soc_audit.server.schemas import AlertEventSchema, IngestResponse
 from soc_audit.server.storage import BackendStorage
@@ -20,6 +21,7 @@ router = APIRouter(prefix="/api/v1/ingest", tags=["ingest"])
 async def ingest_event(
     event: AlertEventSchema,
     request: Request,
+    role: str = require_analyst_or_admin("ingest_alerts"),  # Phase 10.1: Enforce RBAC
     storage: BackendStorage = Depends(get_storage),
     incident_engine: ServerIncidentEngine = Depends(get_incident_engine),
     ws_manager: WebSocketManager = Depends(get_ws_manager),
@@ -27,18 +29,8 @@ async def ingest_event(
     """
     Ingest an alert event.
 
-    Requires analyst or admin role.
+    Phase 10.1: Requires analyst or admin role.
     """
-    # Check auth (analyst/admin allowed for ingest)
-    try:
-        role = get_role_from_request(request)
-        if role not in ["analyst", "admin"]:
-            raise HTTPException(status_code=403, detail="Requires analyst or admin role")
-    except HTTPException:
-        raise
-    except Exception:
-        # Auth disabled - allow
-        pass
 
     # Ensure host_id exists
     if not event.host_id:

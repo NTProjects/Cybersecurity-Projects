@@ -7,6 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 
 from soc_audit.server.auth import get_role_from_request
 from soc_audit.server.deps import get_storage
+from soc_audit.server.rbac import require_agent_or_admin
 from soc_audit.server.schemas.host import HeartbeatRequest, HeartbeatResponse
 from soc_audit.server.storage import BackendStorage
 
@@ -17,27 +18,18 @@ router = APIRouter(prefix="/api/v1", tags=["heartbeat"])
 async def heartbeat(
     heartbeat_request: HeartbeatRequest,
     request: Request,
+    role: str = require_agent_or_admin("send_heartbeat"),  # Phase 10.1: Enforce RBAC
     storage: BackendStorage = Depends(get_storage),
 ):
     """
     Update heartbeat for an agent host.
 
-    Requires agent role (or admin for backward compatibility).
+    Phase 10.1: Requires agent or admin role.
     Creates minimal host record if not exists.
     
     Phase 8.1: Enhanced with validation and explicit response payload.
     Gracefully handles duplicate heartbeats.
     """
-    # Check auth (agent or admin allowed for heartbeat)
-    try:
-        role = get_role_from_request(request)
-        if role not in ["agent", "admin"]:
-            raise HTTPException(status_code=403, detail="Requires agent or admin role")
-    except HTTPException:
-        raise
-    except Exception:
-        # Auth disabled - allow
-        pass
 
     # Phase 8.1: Defensive validation
     if not heartbeat_request.host_id or not heartbeat_request.host_id.strip():

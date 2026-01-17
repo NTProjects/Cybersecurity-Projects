@@ -8,6 +8,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request
 
 from soc_audit.server.auth import get_role_from_request
 from soc_audit.server.deps import get_storage, get_ws_manager
+from soc_audit.server.rbac import require_analyst_or_admin, require_admin
 from soc_audit.server.schemas import AckRequest, AlertEventSchema, SuppressRequest
 from soc_audit.server.storage import BackendStorage
 from soc_audit.server.ws_manager import WebSocketManager
@@ -18,6 +19,7 @@ router = APIRouter(prefix="/api/v1/alerts", tags=["alerts"])
 @router.get("/", response_model=list[AlertEventSchema])
 async def list_alerts(
     request: Request,
+    role: str = require_analyst_or_admin("read_alerts"),  # Phase 10.1: Enforce RBAC (dependency)
     host_id: str | None = Query(None),
     severity: str | None = Query(None),
     rba_min: int | None = Query(None),
@@ -28,7 +30,11 @@ async def list_alerts(
     limit: int = Query(500, ge=1, le=10000),
     storage: BackendStorage = Depends(get_storage),
 ):
-    """List alerts with optional filters."""
+    """
+    List alerts with optional filters.
+    
+    Phase 10.1: Requires analyst or admin role.
+    """
     filters: dict[str, Any] = {}
     if host_id:
         filters["host_id"] = host_id
@@ -53,9 +59,15 @@ async def list_alerts(
 @router.get("/{alert_id}", response_model=AlertEventSchema)
 async def get_alert(
     alert_id: str,
+    request: Request,
+    role: str = require_analyst_or_admin("read_alerts"),  # Phase 10.1: Enforce RBAC (dependency)
     storage: BackendStorage = Depends(get_storage),
 ):
-    """Get a specific alert by ID."""
+    """
+    Get a specific alert by ID.
+    
+    Phase 10.1: Requires analyst or admin role.
+    """
     alert = storage.get_alert(alert_id)
     if not alert:
         raise HTTPException(status_code=404, detail="Alert not found")
@@ -67,23 +79,15 @@ async def ack_alert(
     alert_id: str,
     request: Request,
     ack_request: AckRequest,
+    role: str = require_analyst_or_admin("ack_alerts"),  # Phase 10.1: Enforce RBAC (dependency)
     storage: BackendStorage = Depends(get_storage),
     ws_manager: WebSocketManager = Depends(get_ws_manager),
 ):
     """
     Acknowledge or unacknowledge an alert.
 
-    Requires analyst or admin role.
+    Phase 10.1: Requires analyst or admin role.
     """
-    # Check auth
-    try:
-        role = get_role_from_request(request)
-        if role not in ["analyst", "admin"]:
-            raise HTTPException(status_code=403, detail="Requires analyst or admin role")
-    except HTTPException:
-        raise
-    except Exception:
-        pass
 
     alert = storage.get_alert(alert_id)
     if not alert:
@@ -118,23 +122,15 @@ async def suppress_alert(
     alert_id: str,
     request: Request,
     suppress_request: SuppressRequest,
+    role: str = require_admin("suppress_alerts"),  # Phase 10.1: Enforce RBAC - admin only (dependency)
     storage: BackendStorage = Depends(get_storage),
     ws_manager: WebSocketManager = Depends(get_ws_manager),
 ):
     """
     Suppress or unsuppress an alert.
 
-    Requires admin role.
+    Phase 10.1: Requires admin role (explicitly denied for analyst).
     """
-    # Check auth (admin only)
-    try:
-        role = get_role_from_request(request)
-        if role != "admin":
-            raise HTTPException(status_code=403, detail="Requires admin role")
-    except HTTPException:
-        raise
-    except Exception:
-        pass
 
     alert = storage.get_alert(alert_id)
     if not alert:

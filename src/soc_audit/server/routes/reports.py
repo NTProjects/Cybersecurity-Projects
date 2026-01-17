@@ -9,6 +9,7 @@ from pydantic import BaseModel, Field
 
 from soc_audit.server.auth import get_role_from_request
 from soc_audit.server.deps import get_storage
+from soc_audit.server.rbac import require_analyst_or_admin
 from soc_audit.server.storage import BackendStorage
 
 router = APIRouter(prefix="/api/v1/reports", tags=["reports"])
@@ -66,22 +67,14 @@ class HostReportResponse(BaseModel):
 @router.get("/incidents", response_model=IncidentReportResponse)
 async def get_incident_report(
     request: Request,
+    role: str = require_analyst_or_admin("view_reports"),  # Phase 10.1: Enforce RBAC
     storage: BackendStorage = Depends(get_storage),
 ):
     """
     Phase 9.3: Get incident report for export.
     
-    Requires analyst or admin role.
+    Phase 10.1: Requires analyst or admin role.
     """
-    # Check auth (analyst or admin allowed)
-    try:
-        role = get_role_from_request(request)
-        if role not in ["analyst", "admin"]:
-            raise HTTPException(status_code=403, detail="Requires analyst or admin role")
-    except HTTPException:
-        raise
-    except Exception:
-        pass  # Auth disabled - allow
 
     report_data = storage.get_incident_report_data()
     
@@ -94,22 +87,14 @@ async def get_incident_report(
 @router.get("/hosts", response_model=HostReportResponse)
 async def get_host_report(
     request: Request,
+    role: str = require_analyst_or_admin("view_reports"),  # Phase 10.1: Enforce RBAC
     storage: BackendStorage = Depends(get_storage),
 ):
     """
     Phase 9.3: Get host report for export.
     
-    Requires analyst or admin role.
+    Phase 10.1: Requires analyst or admin role.
     """
-    # Check auth (analyst or admin allowed)
-    try:
-        role = get_role_from_request(request)
-        if role not in ["analyst", "admin"]:
-            raise HTTPException(status_code=403, detail="Requires analyst or admin role")
-    except HTTPException:
-        raise
-    except Exception:
-        pass  # Auth disabled - allow
 
     report_data = storage.get_host_report_data()
     
