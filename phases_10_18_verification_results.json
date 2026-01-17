@@ -477,13 +477,13 @@
           "CPG-1"
         ],
         "nist_800_53": [
+          "IA-4",
           "AC-2",
-          "AC-3",
-          "IA-4"
+          "AC-3"
         ],
         "cis_controls_v8": [
-          "CIS-5",
-          "CIS-6"
+          "CIS-6",
+          "CIS-5"
         ],
         "cisa_cpg_names": [
           "Account Management"
@@ -492,7 +492,7 @@
     },
     "14.2.A": {
       "timestamped": true,
-      "evidence_id": "evidence_20260117_051759_0308"
+      "evidence_id": "evidence_20260117_051809_2750"
     },
     "14.2.B": {
       "immutable": true,
@@ -526,13 +526,13 @@
     },
     "15.2.A": {
       "capture_works": true,
-      "snapshot_id": "snapshot_test_host_20260117_051800"
+      "snapshot_id": "snapshot_test_host_20260117_051809"
     },
     "15.2.B": {
       "change_tracking": true,
       "comparison": {
-        "snapshot1": "snapshot_test_host_20260117_051800",
-        "snapshot2": "snapshot_test_host_20260117_051800",
+        "snapshot1": "snapshot_test_host_20260117_051809",
+        "snapshot2": "snapshot_test_host_20260117_051809",
         "changes": {
           "new_processes": [],
           "terminated_processes": [],
@@ -635,5 +635,5 @@
     "Phase 10",
     "Phase 11"
   ],
-  "timestamp": "2026-01-17T05:18:01.194840"
+  "timestamp": "2026-01-17T05:18:10.496252"
 }
