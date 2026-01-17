@@ -402,8 +402,8 @@ class SQLiteBackendStorage(BackendStorage):
         
         try:
             host_id = host_info["host_id"]
-        host_name = host_info.get("host_name")
-        now = datetime.utcnow().isoformat()
+            host_name = host_info.get("host_name")
+            now = datetime.utcnow().isoformat()
 
             # Load existing host (if any) to preserve first_seen_ts / meta
             cursor.execute(
