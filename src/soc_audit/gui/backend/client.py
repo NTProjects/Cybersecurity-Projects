@@ -61,6 +61,7 @@ class BackendClient:
         self._last_poll_time: float = 0
         self._last_host_poll_time: float = 0  # Performance: Track host polling separately
         self._seen_alert_ids: set[str] = set()  # Deduplication
+        self._last_seen_alert_timestamp: datetime | None = None  # Performance: Track latest alert timestamp for incremental updates
         
         # Status tracking
         self.status = "disconnected"  # disconnected, polling, connected, error
@@ -159,7 +160,7 @@ class BackendClient:
         Returns:
             List of AlertEvent objects.
         """
-        response = self._make_request("/api/v1/alerts?limit=500")
+        response = self._make_request("/api/v1/alerts?limit=10")
         if not response:
             return []
         

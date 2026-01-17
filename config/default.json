@@ -64,12 +64,12 @@
     "group_window_seconds": 300
   },
   "backend": {
-    "enabled": false,
+    "enabled": true,
     "host": "127.0.0.1",
     "port": 8001,
     "api_url": "http://127.0.0.1:8001",
     "ws_url": "ws://127.0.0.1:8001/ws/stream",
-    "poll_interval_seconds": 5,
+    "poll_interval_seconds": 25,
     "use_websocket": true,
     "api_key": "ADMIN_KEY",
     "role": "analyst",
