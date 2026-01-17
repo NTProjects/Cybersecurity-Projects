@@ -571,8 +571,8 @@ def verify_phase_14():
             evidence["14.1.B"] = {"note": "Could not test - no CPGs to map"}
             print("    [PARTIAL] Could not test - no CPGs to map")
         
-        # Test 14.1.C: Traceability from finding → control
-        print("  [14.1.C] Traceability from finding → control")
+        # Test 14.1.C: Traceability from finding to control
+        print("  [14.1.C] Traceability from finding to control")
         crosswalk = engine.crosswalk_finding(test_finding)
         
         if crosswalk and (crosswalk.get("cisa_cpgs") or crosswalk.get("nist_800_53") or crosswalk.get("cis_controls_v8")):

@@ -4,7 +4,7 @@
     "11": "PARTIAL",
     "12": "PASS",
     "13": "PASS",
-    "14": "FAIL",
+    "14": "PASS",
     "15": "PASS",
     "16": "PASS",
     "17": "PASS",
@@ -77,7 +77,9 @@
     },
     "14": {
       "1": {
-        "error": "'charmap' codec can't encode character '\\u2192' in position 37: character maps to <undefined>"
+        "A": "PASS",
+        "B": "PASS",
+        "C": "PASS"
       },
       "2": {
         "A": "PASS",
@@ -468,9 +470,29 @@
       "nist_count": 3,
       "cis_count": 2
     },
+    "14.1.C": {
+      "traceability": true,
+      "crosswalk": {
+        "cisa_cpgs": [
+          "CPG-1"
+        ],
+        "nist_800_53": [
+          "AC-2",
+          "AC-3",
+          "IA-4"
+        ],
+        "cis_controls_v8": [
+          "CIS-5",
+          "CIS-6"
+        ],
+        "cisa_cpg_names": [
+          "Account Management"
+        ]
+      }
+    },
     "14.2.A": {
       "timestamped": true,
-      "evidence_id": "evidence_20260117_051740_7890"
+      "evidence_id": "evidence_20260117_051759_0308"
     },
     "14.2.B": {
       "immutable": true,
@@ -504,74 +526,28 @@
     },
     "15.2.A": {
       "capture_works": true,
-      "snapshot_id": "snapshot_test_host_20260117_051740"
+      "snapshot_id": "snapshot_test_host_20260117_051800"
     },
     "15.2.B": {
       "change_tracking": true,
       "comparison": {
-        "snapshot1": "snapshot_test_host_20260117_051740",
-        "snapshot2": "snapshot_test_host_20260117_051741",
+        "snapshot1": "snapshot_test_host_20260117_051800",
+        "snapshot2": "snapshot_test_host_20260117_051800",
         "changes": {
-          "new_processes": [
-            {
-              "name": "tasklist.exe",
-              "pid": "29252",
-              "memory": "12"
-            }
-          ],
-          "terminated_processes": [
-            {
-              "name": "splunk.exe",
-              "pid": "29524",
-              "memory": "7"
-            },
-            {
-              "name": "tasklist.exe",
-              "pid": "21804",
-              "memory": "12"
-            },
-            {
-              "name": "btool.exe",
-              "pid": "19940",
-              "memory": "5"
-            },
-            {
-              "name": "splunkd.exe",
-              "pid": "2876",
-              "memory": "41"
-            }
-          ],
+          "new_processes": [],
+          "terminated_processes": [],
           "new_ports": [],
           "closed_ports": [],
           "new_connections": [],
-          "closed_connections": [
-            {
-              "protocol": "tcp",
-              "local_address": "127.0.0.1",
-              "local_port": "8089",
-              "remote_address": "127.0.0.1",
-              "remote_port": "49210",
-              "state": "ESTABLISHED",
-              "pid": "4872"
-            },
-            {
-              "protocol": "tcp",
-              "local_address": "127.0.0.1",
-              "local_port": "49210",
-              "remote_address": "127.0.0.1",
-              "remote_port": "8089",
-              "state": "ESTABLISHED",
-              "pid": "15324"
-            }
-          ]
+          "closed_connections": []
         },
         "summary": {
-          "new_processes": 1,
-          "terminated_processes": 4,
+          "new_processes": 0,
+          "terminated_processes": 0,
           "new_ports": 0,
           "closed_ports": 0,
           "new_connections": 0,
-          "closed_connections": 2
+          "closed_connections": 0
         }
       }
     },
@@ -654,12 +630,10 @@
       "reliable": true
     }
   },
-  "blocking_issues": [
-    "Phase 14"
-  ],
+  "blocking_issues": [],
   "downgrades_required": [
     "Phase 10",
     "Phase 11"
   ],
-  "timestamp": "2026-01-17T05:17:41.913014"
+  "timestamp": "2026-01-17T05:18:01.194840"
 }
