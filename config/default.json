@@ -151,6 +151,44 @@
       "check_antivirus_present": true,
       "check_real_time_protection": true,
       "check_tamper_protection": true
+    },
+    "windows_defender": {
+      "enabled": true,
+      "check_real_time_protection": true,
+      "check_tamper_protection": true,
+      "check_cloud_protection": true,
+      "check_automatic_sample_submission": true,
+      "check_signature_updates": true,
+      "check_dev_drive_protection": true,
+      "check_controlled_folder_access": true,
+      "check_exclusions": true
+    },
+    "device_security": {
+      "enabled": true,
+      "check_memory_integrity": true,
+      "check_secure_boot": true,
+      "check_tpm": true,
+      "check_lsa_protection": true,
+      "check_vulnerable_driver_blocklist": true,
+      "check_kernel_stack_protection": true
+    },
+    "exploit_protection": {
+      "enabled": true,
+      "check_cfg": true,
+      "check_dep": true,
+      "check_mandatory_aslr": true,
+      "check_bottom_up_aslr": true,
+      "check_high_entropy_aslr": true,
+      "check_sehop": true,
+      "check_heap_integrity": true
+    },
+    "app_browser_control": {
+      "enabled": true,
+      "check_smartscreen_apps": true,
+      "check_smartscreen_edge": true,
+      "check_smartscreen_store": true,
+      "check_phishing_protection": true,
+      "check_pua_blocking": true
     }
   }
 }
