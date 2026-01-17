@@ -30,6 +30,23 @@ class HostStatusDialog:
 
     def _show_dialog(self) -> None:
         """Show the dialog."""
+        # Guard: Check if backend is authenticated (analyst/admin role required)
+        if not self.backend_client.api_key:
+            messagebox.showwarning(
+                "Not Authenticated",
+                "Please authenticate with the backend first.\n\n"
+                "Go to Backend → Authentication... and enter your API key."
+            )
+            return
+        
+        if self.backend_client.backend_role not in ["analyst", "admin"]:
+            messagebox.showwarning(
+                "Insufficient Permissions",
+                "Host listing requires analyst or admin role.\n\n"
+                "Please authenticate with an appropriate API key."
+            )
+            return
+        
         # Phase 9.4: Fetch hosts at open-time from backend client
         try:
             hosts = self.backend_client.get_hosts()
@@ -45,7 +62,8 @@ class HostStatusDialog:
             messagebox.showinfo(
                 "Host Status",
                 "No hosts found.\n\n"
-                "Ensure agents are registered with the backend server."
+                "Ensure agents are registered with the backend server.\n"
+                "Hosts appear after agents send heartbeats."
             )
             return
         

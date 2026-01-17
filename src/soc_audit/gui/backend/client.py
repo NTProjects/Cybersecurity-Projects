@@ -451,40 +451,78 @@ class BackendClient:
         if self.on_status:
             self.on_status("polling", "Backend polling started")
         
+        consecutive_errors = 0
+        max_consecutive_errors = 5
+        
         while self._polling:
             try:
+                # Only poll if authenticated (have API key)
+                if not self.api_key:
+                    # Wait longer if not authenticated
+                    time.sleep(self.poll_interval_seconds * 2)
+                    continue
+                
                 # Poll alerts
-                alerts = self.poll_alerts()
-                for alert in alerts:
-                    # Deduplicate by alert_id
-                    if alert.id not in self._seen_alert_ids:
-                        self._seen_alert_ids.add(alert.id)
-                        if self.on_alert:
-                            self.on_alert(alert)
+                try:
+                    alerts = self.poll_alerts()
+                    for alert in alerts:
+                        # Deduplicate by alert_id
+                        if alert.id not in self._seen_alert_ids:
+                            self._seen_alert_ids.add(alert.id)
+                            if self.on_alert:
+                                try:
+                                    self.on_alert(alert)
+                                except Exception as callback_error:
+                                    # Log but don't crash on callback errors
+                                    print(f"[GUI] Error in alert callback: {callback_error}")
+                except Exception as alert_error:
+                    print(f"[GUI] Error polling alerts: {alert_error}")
                 
                 # Poll incidents
-                incidents = self.poll_incidents()
-                for incident in incidents:
-                    if self.on_incident:
-                        self.on_incident(incident)
-                
-                # Phase 8.2: Poll hosts to update status cache
                 try:
-                    self.get_hosts()  # Updates cache internally
-                except Exception:
-                    pass  # Non-critical, continue polling
+                    incidents = self.poll_incidents()
+                    for incident in incidents:
+                        if self.on_incident:
+                            try:
+                                self.on_incident(incident)
+                            except Exception as callback_error:
+                                print(f"[GUI] Error in incident callback: {callback_error}")
+                except Exception as incident_error:
+                    print(f"[GUI] Error polling incidents: {incident_error}")
+                
+                # Phase 8.2: Poll hosts to update status cache (only if authenticated)
+                if self.api_key and self.backend_role in ["analyst", "admin"]:
+                    try:
+                        self.get_hosts()  # Updates cache internally
+                    except Exception as host_error:
+                        # Non-critical, continue polling
+                        pass
                 
                 self._last_poll_time = time.time()
                 self.last_error = None
+                consecutive_errors = 0  # Reset error counter on success
                 
                 if self.status != "connected":  # Don't override WebSocket status
                     self.status = "polling"
                 
             except Exception as e:
+                consecutive_errors += 1
                 self.status = "error"
                 self.last_error = str(e)
-                if self.on_status:
-                    self.on_status("error", f"Backend polling error: {e}")
+                
+                # Only log errors occasionally to avoid spam
+                if consecutive_errors <= 1 or consecutive_errors % 10 == 0:
+                    if self.on_status:
+                        self.on_status("error", f"Backend polling error: {e}")
+                    print(f"[GUI] Backend polling error ({consecutive_errors}): {e}")
+                
+                # Back off on repeated errors
+                sleep_time = self.poll_interval_seconds
+                if consecutive_errors > max_consecutive_errors:
+                    sleep_time = min(self.poll_interval_seconds * 2, 30.0)  # Cap at 30s
+                
+                time.sleep(sleep_time)
+                continue
             
             # Sleep until next poll
             time.sleep(self.poll_interval_seconds)

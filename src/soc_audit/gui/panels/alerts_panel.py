@@ -195,23 +195,43 @@ class AlertsPanel(ttk.LabelFrame):
         self.on_suppress: Callable[[str, dict], None] | None = None
         self.on_view_incident: Callable[[str], None] | None = None
 
-    def _on_tree_select(self, event: tk.Event) -> None:
+    def _on_tree_select(self, event: tk.Event | None = None) -> None:
         """Handle treeview selection."""
+        # Guard against empty selection
         selection = self.tree.selection()
         if not selection:
             return
 
         item_id = selection[0]
+        if not item_id:
+            return
+        
+        # Guard against missing item
+        if not self.tree.exists(item_id):
+            return
+        
         item = self.tree.item(item_id)
         values = item.get("values", [])
+        
+        # Guard against empty values
+        if not values or len(values) == 0:
+            return
+        
+        # Extract alert_id FIRST before any usage
+        alert_id = values[0] if len(values) > 0 else None
+        if not alert_id:
+            # Try to get from tree.set as fallback
+            alert_id = self.tree.set(item_id, "alert_id")
+            if not alert_id:
+                return
         
         # Get the index to retrieve the cached Finding
         children = self.tree.get_children()
         idx = children.index(item_id) if item_id in children else -1
         
-        if values and self.on_select:
+        if self.on_select:
             data = {
-                "alert_id": values[0] if len(values) > 0 else "",  # alert_id is first column
+                "alert_id": alert_id,
                 "severity": values[1] if len(values) > 1 else "",
                 "rba": values[2] if len(values) > 2 else "",
                 "module": values[3] if len(values) > 3 else "",
@@ -508,48 +528,91 @@ class AlertsPanel(ttk.LabelFrame):
     def _on_ack(self) -> None:
         """Handle acknowledge action."""
         selection = self.tree.selection()
-        if selection and self.on_ack:
-            item = self.tree.item(selection[0])
-            alert_id = self.tree.set(selection[0], "alert_id")
-            if alert_id:
+        if not selection or not self.on_ack:
+            return
+        
+        item_id = selection[0]
+        if not item_id or not self.tree.exists(item_id):
+            return
+        
+        alert_id = self.tree.set(item_id, "alert_id")
+        if alert_id:
+            try:
                 self.on_ack(alert_id)
+            except Exception as e:
+                print(f"[GUI] Error in acknowledge callback: {e}")
     
     def _on_unack(self) -> None:
         """Handle unacknowledge action."""
         selection = self.tree.selection()
-        if selection and self.on_ack:
-            item = self.tree.item(selection[0])
-            alert_id = self.tree.set(selection[0], "alert_id")
-            if alert_id:
+        if not selection or not self.on_ack:
+            return
+        
+        item_id = selection[0]
+        if not item_id or not self.tree.exists(item_id):
+            return
+        
+        alert_id = self.tree.set(item_id, "alert_id")
+        if alert_id:
+            try:
                 self.on_ack(alert_id)  # Toggle - same callback
+            except Exception as e:
+                print(f"[GUI] Error in unacknowledge callback: {e}")
     
     def _on_suppress_similar(self) -> None:
         """Handle suppress similar action."""
         selection = self.tree.selection()
-        if selection and self.on_suppress:
-            item = self.tree.item(selection[0])
-            values = item.get("values", [])
-            alert_id = self.tree.set(selection[0], "alert_id")
-            if alert_id and values:
+        if not selection or not self.on_suppress:
+            return
+        
+        item_id = selection[0]
+        if not item_id or not self.tree.exists(item_id):
+            return
+        
+        item = self.tree.item(item_id)
+        values = item.get("values", [])
+        if not values:
+            return
+        
+        alert_id = self.tree.set(item_id, "alert_id")
+        if alert_id and values:
+            try:
                 # Extract module and title for suppression rule (alert_id is index 0)
                 module = values[3] if len(values) > 3 else ""  # module is index 3
                 title = values[4] if len(values) > 4 else ""  # title is index 4
                 self.on_suppress(alert_id, {"module": module, "title": title})
+            except Exception as e:
+                print(f"[GUI] Error in suppress callback: {e}")
     
     def _on_view_incident(self) -> None:
         """Handle view incident action."""
         selection = self.tree.selection()
-        if selection and self.on_view_incident:
-            item = self.tree.item(selection[0])
-            values = item.get("values", [])
-            incident_id = values[10] if len(values) > 10 else None  # incident is index 10
-            if incident_id and incident_id != "-":
+        if not selection or not self.on_view_incident:
+            return
+        
+        item_id = selection[0]
+        if not item_id or not self.tree.exists(item_id):
+            return
+        
+        item = self.tree.item(item_id)
+        values = item.get("values", [])
+        if not values:
+            return
+        
+        incident_id = values[10] if len(values) > 10 else None  # incident is index 10
+        if incident_id and incident_id != "-":
+            try:
                 # Extract full incident ID from alert_event if available
-                alert_id = self.tree.set(selection[0], "alert_id")
+                alert_id = self.tree.set(item_id, "alert_id")
                 if alert_id and alert_id in self.alert_events_cache:
                     event = self.alert_events_cache[alert_id]
-                    if event.incident_id:
+                    if event and hasattr(event, "incident_id") and event.incident_id:
                         self.on_view_incident(event.incident_id)
+                elif incident_id:
+                    # Fallback: use the displayed incident ID
+                    self.on_view_incident(incident_id)
+            except Exception as e:
+                print(f"[GUI] Error in view incident callback: {e}")
     
     def update_alert_ack(self, alert_id: str, acked: bool) -> None:
         """Update ack status for an alert in the table."""
