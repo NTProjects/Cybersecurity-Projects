@@ -309,10 +309,13 @@ class SQLiteBackendStorage(BackendStorage):
                 alert_dict["received_ts"],
                 alert_dict.get("suppressed_until"),
                 alert_dict.get("notes"),
-            ),
-        )
-
-        conn.commit()
+                ),
+            )
+            
+            conn.commit()
+        except Exception:
+            conn.rollback()
+            raise
 
     def save_incident(self, incident_dict: dict[str, Any]) -> None:
         """
