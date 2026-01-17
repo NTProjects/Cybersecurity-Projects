@@ -271,13 +271,13 @@ class SQLiteBackendStorage(BackendStorage):
         
         try:
             # Ensure required fields
-        if "host_id" not in alert_dict:
-            raise ValueError("host_id is required")
+            if "host_id" not in alert_dict:
+                raise ValueError("host_id is required")
 
-        if "received_ts" not in alert_dict:
-            alert_dict["received_ts"] = datetime.utcnow().isoformat()
+            if "received_ts" not in alert_dict:
+                alert_dict["received_ts"] = datetime.utcnow().isoformat()
 
-        cursor.execute(
+            cursor.execute(
             """
             INSERT OR REPLACE INTO alerts
             (id, timestamp, severity, module, title, source, evidence_json,
