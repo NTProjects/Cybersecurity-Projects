@@ -12,7 +12,7 @@
       "D": "PASS"
     },
     "10.3": {
-      "A": "PARTIAL",
+      "A": "PASS",
       "B": "PASS",
       "C": "PASS"
     },
@@ -79,7 +79,7 @@
     "10.2.B": {
       "example_entry": {
         "id": 6,
-        "timestamp": "2026-01-17T05:07:17.533969",
+        "timestamp": "2026-01-17T05:07:38.988621",
         "user_id": "test_user_123",
         "role": "analyst",
         "operation": "test_operation",
@@ -89,8 +89,8 @@
         "action": "read",
         "result": "success",
         "details": null,
-        "previous_hash": "a95fbbc12d5cf6713b94e19b255e55765a176636be664a1ae102f7f1375a0bcf",
-        "entry_hash": "80db6e2dc7c9fa05cc343c08f91cf0ff30396c60faf5df6f2382bce59179d580"
+        "previous_hash": "60414de80eeb8a6ecb36885294c4ce958ea4e04798f0e11530c6383dcd728803",
+        "entry_hash": "970602a83526eab213b08dd1431e99dc20eb4b37c293701bc274b86d72cb71f9"
       },
       "has_all_fields": true
     },
@@ -103,13 +103,8 @@
       "errors": []
     },
     "10.3.A": {
-      "read_successes": 4,
-      "errors": [
-        [
-          4,
-          "bad parameter or other API misuse"
-        ]
-      ]
+      "concurrent_reads": 5,
+      "errors": []
     },
     "10.3.B": {
       "methods_with_rollback": [
@@ -126,11 +121,11 @@
     "10.4.A": {
       "log_format": "JSON",
       "example": {
-        "timestamp": "2026-01-17T05:07:18.766339",
+        "timestamp": "2026-01-17T05:07:40.210525",
         "level": "INFO",
         "logger": "test",
         "message": "Test message",
-        "correlation_id": "0ea0c95a",
+        "correlation_id": "33ffc459",
         "module": "verify_phase10",
         "function": "test_10_4_observability",
         "line": 514,
@@ -147,7 +142,7 @@
       "has_context": true,
       "has_exception": true,
       "example": {
-        "timestamp": "2026-01-17T05:07:18.766339",
+        "timestamp": "2026-01-17T05:07:40.211112",
         "level": "ERROR",
         "logger": "test_error",
         "message": "Error occurred",
@@ -160,5 +155,5 @@
       }
     }
   },
-  "timestamp": "2026-01-17T05:07:18.767885"
+  "timestamp": "2026-01-17T05:07:40.212115"
 }
