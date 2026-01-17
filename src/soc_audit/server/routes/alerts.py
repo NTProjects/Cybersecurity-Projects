@@ -1,6 +1,7 @@
 """Alerts API endpoints."""
 from __future__ import annotations
 
+import logging
 from datetime import datetime
 from typing import Any
 
@@ -8,10 +9,13 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request
 
 from soc_audit.server.auth import get_role_from_request
 from soc_audit.server.deps import get_storage, get_ws_manager
+from soc_audit.server.logging_config import log_performance, get_correlation_id
 from soc_audit.server.rbac import require_analyst_or_admin, require_admin
 from soc_audit.server.schemas import AckRequest, AlertEventSchema, SuppressRequest
 from soc_audit.server.storage import BackendStorage
 from soc_audit.server.ws_manager import WebSocketManager
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/v1/alerts", tags=["alerts"])
 
@@ -89,32 +93,57 @@ async def ack_alert(
     Phase 10.1: Requires analyst or admin role.
     """
 
-    alert = storage.get_alert(alert_id)
-    if not alert:
-        raise HTTPException(status_code=404, detail="Alert not found")
+            alert = storage.get_alert(alert_id)
+            if not alert:
+                raise HTTPException(status_code=404, detail="Alert not found")
 
-    # Update ack status
-    storage.update_alert_ack(alert_id, ack_request.acked, datetime.utcnow().isoformat())
+            # Update ack status
+            storage.update_alert_ack(alert_id, ack_request.acked, datetime.utcnow().isoformat())
 
-    # Append timeline
-    storage.append_timeline(
-        {
-            "timestamp": datetime.utcnow().isoformat(),
-            "message": f"Alert {'acknowledged' if ack_request.acked else 'unacknowledged'}",
-            "level": "info",
-            "source": "api",
-            "module": alert.get("module", "unknown"),
-            "alert_id": alert_id,
-            "host_id": alert.get("host_id"),
-        }
-    )
+            # Append timeline
+            storage.append_timeline(
+                {
+                    "timestamp": datetime.utcnow().isoformat(),
+                    "message": f"Alert {'acknowledged' if ack_request.acked else 'unacknowledged'}",
+                    "level": "info",
+                    "source": "api",
+                    "module": alert.get("module", "unknown"),
+                    "alert_id": alert_id,
+                    "host_id": alert.get("host_id"),
+                }
+            )
 
-    # Broadcast update
-    updated_alert = storage.get_alert(alert_id)
-    if ws_manager and updated_alert:
-        await ws_manager.broadcast_json({"type": "alert", "data": updated_alert})
+            # Broadcast update
+            updated_alert = storage.get_alert(alert_id)
+            if ws_manager and updated_alert:
+                await ws_manager.broadcast_json({"type": "alert", "data": updated_alert})
 
-    return updated_alert
+            logger.info(
+                f"Alert {alert_id} {'acknowledged' if ack_request.acked else 'unacknowledged'}",
+                extra={
+                    "extra_fields": {
+                        "alert_id": alert_id,
+                        "action": "ack" if ack_request.acked else "unack",
+                        "role": role,
+                    }
+                },
+            )
+            
+            return updated_alert
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.error(
+                f"Error acknowledging alert {alert_id}: {e}",
+                exc_info=True,
+                extra={
+                    "extra_fields": {
+                        "alert_id": alert_id,
+                        "correlation_id": get_correlation_id(),
+                    }
+                },
+            )
+            raise HTTPException(status_code=500, detail=f"Error acknowledging alert: {str(e)}")
 
 
 @router.post("/{alert_id}/suppress", response_model=AlertEventSchema)

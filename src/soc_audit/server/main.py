@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import logging
 from pathlib import Path
 from typing import Any
 
@@ -12,11 +13,17 @@ from soc_audit.core.config import load_config
 from soc_audit.server.auth import get_auth_config
 from soc_audit.server.audit_log import AuditLogger
 from soc_audit.server.incident_engine import ServerIncidentEngine
+from soc_audit.server.logging_config import setup_logging, set_correlation_id, get_correlation_id
 from soc_audit.server.middleware.audit_middleware import AuditLoggingMiddleware
+from soc_audit.server.middleware.correlation_middleware import CorrelationIDMiddleware
 from soc_audit.server.routes import alerts, heartbeat, hosts, incidents, ingest, ingest_batch, reports
 from soc_audit.server.routes.ws import websocket_stream
 from soc_audit.server.storage import BackendStorage, SQLiteBackendStorage
 from soc_audit.server.ws_manager import WebSocketManager
+
+# Phase 10.4: Setup structured logging
+setup_logging(level="INFO", use_json=True, include_correlation=True)
+logger = logging.getLogger(__name__)
 
 app = FastAPI(title="SOC Audit Server", version="1.0.0")
 
@@ -29,6 +36,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Phase 10.4: Correlation ID middleware (first, sets correlation ID for all requests)
+app.add_middleware(CorrelationIDMiddleware)
+
 # Phase 10.2: Audit logging middleware (must be after CORS, before routes)
 app.add_middleware(AuditLoggingMiddleware)
 
@@ -38,9 +48,7 @@ app.add_middleware(AuditLoggingMiddleware)
 @app.on_event("startup")
 async def startup_event():
     """Initialize storage, engine, and WebSocket manager on startup."""
-    import logging
-    
-    logger = logging.getLogger(__name__)
+    logger.info("Starting SOC Audit Server", extra={"extra_fields": {"phase": "startup"}})
     
     # Load config (default path or from environment)
     config_path = Path("config/default.json")
@@ -91,9 +99,18 @@ async def startup_event():
                 online_count += 1
         
         if all_hosts:
-            logger.info(f"[STARTUP] Host status: {online_count} ONLINE, {len(all_hosts) - online_count} OFFLINE")
+            logger.info(
+                "Host status loaded",
+                extra={
+                    "extra_fields": {
+                        "online_count": online_count,
+                        "offline_count": len(all_hosts) - online_count,
+                        "total_hosts": len(all_hosts),
+                    }
+                },
+            )
     except Exception as e:
-        logger.warning(f"[STARTUP] Could not load host registry: {e}")
+        logger.warning(f"Could not load host registry: {e}", exc_info=True)
 
     # Initialize incident engine
     incidents_config = server_config.get("incidents", {})
