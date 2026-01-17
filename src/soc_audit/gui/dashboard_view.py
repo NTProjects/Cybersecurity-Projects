@@ -302,17 +302,20 @@ class DashboardView(ttk.Frame):
             self._poll_collector_events()
         
         # Start backend client if enabled
-        if self._backend_client:
-            try:
-                self._backend_client.start()
-                # Start backend update processor (main thread)
-                if self._backend_update_after_id is None:
-                    self._process_backend_updates()
-                if self.on_status:
-                    self.on_status("Backend client started")
-            except Exception as e:
-                if self.on_status:
-                    self.on_status(f"Backend start error: {e}")
+        # PERFORMANCE TEST: Backend polling disabled to test lag
+        # if self._backend_client:
+        #     try:
+        #         self._backend_client.start()
+        #         # Start backend update processor (main thread)
+        #         if self._backend_update_after_id is None:
+        #             self._process_backend_updates()
+        #         if self.on_status:
+        #             self.on_status("Backend client started")
+        #     except Exception as e:
+        #         if self.on_status:
+        #             self.on_status(f"Backend start error: {e}")
+        if self.on_status:
+            self.on_status("Backend polling DISABLED (performance test)")
 
     def stop(self) -> None:
         """Stop periodic metrics refresh, streaming, collectors, and backend client."""
