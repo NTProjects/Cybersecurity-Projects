@@ -37,16 +37,16 @@ class TimelinePanel(ttk.LabelFrame):
         event_count: Current count of events displayed.
     """
 
-    def __init__(self, parent: tk.Widget, max_events: int = 100) -> None:
+    def __init__(self, parent: tk.Widget, max_events: int = 500) -> None:
         """
         Initialize the timeline panel.
 
         Args:
             parent: Parent widget.
-            max_events: Maximum number of events to retain.
+            max_events: Maximum number of events to retain (default: 500).
         """
         super().__init__(parent, text="Activity Timeline", padding=10)
-        self.max_events = max_events
+        self.max_events = max_events  # Performance: Increased from 100 to 500
         self.event_count = 0
         self._build_ui()
 

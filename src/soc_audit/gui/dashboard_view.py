@@ -154,6 +154,7 @@ class DashboardView(ttk.Frame):
         # Phase 7.3: Host scope state
         self.current_host_id: str | None = None  # None = All Hosts
         self._hosts_list: list[dict[str, Any]] = []  # Cached host list
+        self._last_host_ids: set[str] = set()  # Performance: track host IDs for diff-based updates
         backend_config = self.config.get("backend", {})
         if backend_config.get("enabled", False):
             try:
@@ -995,7 +996,7 @@ class DashboardView(ttk.Frame):
     
     def get_hosts(self) -> list[dict[str, Any]]:
         """
-        Get list of hosts from backend (with caching).
+        Get list of hosts from backend (with caching and diff-based updates).
         
         Returns:
             List of host dicts.
@@ -1006,25 +1007,34 @@ class DashboardView(ttk.Frame):
         try:
             hosts = self._backend_client.get_hosts()
             
-            # Phase 9.4: Detect when hosts become available
-            was_ready = self._backend_client.hosts_ready
-            is_now_ready = self._backend_client.has_hosts()
+            # Performance: Diff-based host updates - only update UI if hosts changed
+            new_host_ids = {h.get("host_id", "") for h in hosts if h.get("host_id")}
             
-            if not was_ready and is_now_ready:
-                print(f"[GUI] Hosts became available")
-                # Notify MainWindow to update menu state
-                main_window = getattr(self, "_main_window_ref", None)
-                if main_window and hasattr(main_window, "update_backend_menu_state"):
-                    main_window.update_backend_menu_state()
+            # Only log/update when hosts actually change (not on every poll)
+            if new_host_ids != self._last_host_ids:
+                self._last_host_ids = new_host_ids
+                
+                # Phase 9.4: Detect when hosts become available
+                was_ready = self._backend_client.hosts_ready
+                is_now_ready = self._backend_client.has_hosts()
+                
+                if not was_ready and is_now_ready:
+                    print(f"[GUI] Hosts became available: {len(hosts)} host(s)")
+                    # Notify MainWindow to update menu state
+                    main_window = getattr(self, "_main_window_ref", None)
+                    if main_window and hasattr(main_window, "update_backend_menu_state"):
+                        main_window.update_backend_menu_state()
+                
+                # Log when hosts list transitions from empty to non-empty (one-time)
+                was_empty = len(self._hosts_list) == 0
+                is_non_empty = len(hosts) > 0
+                if was_empty and is_non_empty:
+                    print(f"[GUI] Hosts list populated: {len(hosts)} host(s) available")
+                
+                self._hosts_list = hosts
+            # else: hosts unchanged, skip update (performance optimization)
             
-            # Log when hosts list transitions from empty to non-empty
-            was_empty = len(self._hosts_list) == 0
-            is_non_empty = len(hosts) > 0
-            if was_empty and is_non_empty:
-                print(f"[GUI] Hosts list populated: {len(hosts)} host(s) available")
-            
-            self._hosts_list = hosts
-            return hosts
+            return self._hosts_list  # Always return cached list
         except Exception:
             return self._hosts_list  # Return cached list on error
     

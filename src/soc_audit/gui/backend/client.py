@@ -295,34 +295,35 @@ class BackendClient:
         """
         response = self._make_request("/api/v1/hosts")
         
-        # Handle empty/None response
+        # Handle empty/None response (silent - not an error during normal polling)
         if not response:
-            print("[GUI] get_hosts(): empty response")
             return []
         
         # Handle list-only response (legacy)
         if isinstance(response, list):
             hosts = response
-            print(f"[GUI] get_hosts(): received {len(hosts)} host(s) (legacy list format)")
         # Handle dict response
         elif isinstance(response, dict):
             # Try canonical shape: {"ok": true, "hosts": [...]}
             if "hosts" in response:
                 hosts = response.get("hosts", [])
                 if not isinstance(hosts, list):
+                    # Only log actual errors (unexpected shapes)
                     print(f"[GUI] get_hosts(): unexpected response shape: hosts field is not a list")
                     return []
-                print(f"[GUI] get_hosts(): received {len(hosts)} host(s)")
             # Try legacy partial: just check if it's a dict with no "hosts" key
             else:
+                # Only log actual errors (unexpected shapes)
                 print(f"[GUI] get_hosts(): unexpected response shape: dict missing 'hosts' key, keys: {list(response.keys())}")
                 return []
         else:
+            # Only log actual errors (unexpected shapes)
             print(f"[GUI] get_hosts(): unexpected response shape: {type(response)}")
             return []
         
         # Validate hosts list contents
         if not isinstance(hosts, list):
+            # Only log actual errors
             print("[GUI] get_hosts(): hosts is not a list after parsing")
             return []
         
