@@ -763,17 +763,17 @@ class LocalSecurityScanner(BaseModule):
                             )
                         )
                     
-    except Exception as e:
-        findings.append(
-            Finding(
-                title="Device Security Status Check Failed",
-                description=f"Could not query device security status: {str(e)}",
-                severity="warning",
-                evidence={"error": str(e), "source": "local_security_scanner"},
+        except Exception as e:
+            findings.append(
+                Finding(
+                    title="Device Security Status Check Failed",
+                    description=f"Could not query device security status: {str(e)}",
+                    severity="warning",
+                    evidence={"error": str(e), "source": "local_security_scanner"},
+                )
             )
-        )
-    
-    return findings
+        
+        return findings
     
     def _check_exploit_protection(self, config: dict[str, Any]) -> list[Finding]:
         """Check Exploit Protection settings."""
@@ -827,17 +827,17 @@ class LocalSecurityScanner(BaseModule):
                             )
                         )
                     
-    except Exception as e:
-        findings.append(
-            Finding(
-                title="Exploit Protection Status Check Failed",
-                description=f"Could not query exploit protection status: {str(e)}",
-                severity="warning",
-                evidence={"error": str(e), "source": "local_security_scanner"},
+        except Exception as e:
+            findings.append(
+                Finding(
+                    title="Exploit Protection Status Check Failed",
+                    description=f"Could not query exploit protection status: {str(e)}",
+                    severity="warning",
+                    evidence={"error": str(e), "source": "local_security_scanner"},
+                )
             )
-        )
-    
-    return findings
+        
+        return findings
     
     def _check_app_browser_control(self, config: dict[str, Any]) -> list[Finding]:
         """Check App & Browser Control settings (SmartScreen, PUA blocking, etc.)."""
@@ -934,14 +934,14 @@ class LocalSecurityScanner(BaseModule):
                             )
                         )
                     
-    except Exception as e:
-        findings.append(
-            Finding(
-                title="App & Browser Control Status Check Failed",
-                description=f"Could not query app & browser control status: {str(e)}",
-                severity="warning",
-                evidence={"error": str(e), "source": "local_security_scanner"},
+        except Exception as e:
+            findings.append(
+                Finding(
+                    title="App & Browser Control Status Check Failed",
+                    description=f"Could not query app & browser control status: {str(e)}",
+                    severity="warning",
+                    evidence={"error": str(e), "source": "local_security_scanner"},
+                )
             )
-        )
-    
-    return findings
+        
+        return findings
