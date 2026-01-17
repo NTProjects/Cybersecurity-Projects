@@ -413,64 +413,62 @@ def test_10_3_multi_user_readiness():
     
     # Test 10.3.B: Transaction Integrity
     print("\n[10.3.B] Transaction Integrity")
-    # Check that storage methods use try/except with rollback
-    storage_source = Path("src/soc_audit/server/storage.py").read_text()
+    # Use runtime inspection to verify actual implementation
+    from soc_audit.server.storage import SQLiteBackendStorage
+    import tempfile
+    import inspect
     
-    # Find SQLiteBackendStorage class (actual implementation, not abstract base)
-    sqlite_class_start = storage_source.find("class SQLiteBackendStorage")
-    if sqlite_class_start == -1:
-        results["10.3"]["B"] = "FAIL"
-        evidence["10.3.B"] = {"error": "SQLiteBackendStorage class not found"}
-        print("  [FAIL] SQLiteBackendStorage class not found")
-        return
+    # Create test storage instance
+    with tempfile.NamedTemporaryFile(suffix=".db", delete=False) as tmp:
+        db_path = tmp.name
     
-    # Get SQLiteBackendStorage class implementation
-    sqlite_class_section = storage_source[sqlite_class_start:]
-    
-    # Check that write methods have transaction rollback
-    write_methods = ["save_alert", "save_incident", "update_alert_ack", "update_incident_status"]
-    methods_with_rollback = []
-    methods_without_rollback = []
-    
-    for method in write_methods:
-        # Find method definition within SQLiteBackendStorage class
-        # Look for method with "Phase 10.3" comment (our implementation marker)
-        method_pattern = f'def {method}(self'
-        method_start = sqlite_class_section.find(method_pattern)
-        if method_start != -1:
-            # Check for try/except with rollback in next 2000 chars
-            method_section = sqlite_class_section[method_start:method_start+2000]
-            # Find end of method (next def or end of class)
-            next_def = method_section.find("\n    def ", len("def " + method))
-            if next_def != -1:
-                method_section = method_section[:next_def]
-            
-            has_try = "try:" in method_section
-            has_rollback = "rollback()" in method_section
-            has_except = "except" in method_section
-            
-            if has_try and has_rollback and has_except:
-                methods_with_rollback.append(method)
+    try:
+        storage = SQLiteBackendStorage(db_path)
+        storage.init()
+        
+        # Inspect actual methods using runtime inspection
+        write_methods = ["save_alert", "save_incident", "update_alert_ack", "update_incident_status"]
+        methods_with_rollback = []
+        methods_without_rollback = []
+        
+        for method_name in write_methods:
+            method = getattr(storage, method_name, None)
+            if method:
+                # Get source code of actual method implementation
+                method_source = inspect.getsource(method)
+                has_try = "try:" in method_source
+                has_rollback = "rollback()" in method_source
+                has_except = "except" in method_source
+                
+                if has_try and has_rollback and has_except:
+                    methods_with_rollback.append(method_name)
+                else:
+                    methods_without_rollback.append(method_name)
             else:
-                methods_without_rollback.append(method)
+                methods_without_rollback.append(method_name)
+        
+        if not methods_without_rollback:
+            results["10.3"]["B"] = "PASS"
+            evidence["10.3.B"] = {
+                "methods_with_rollback": methods_with_rollback,
+            }
+            print("  [PASS] All write methods have transaction rollback")
+            print(f"    - Methods checked: {methods_with_rollback}")
         else:
-            methods_without_rollback.append(method)
-    
-    if not methods_without_rollback:
-        results["10.3"]["B"] = "PASS"
-        evidence["10.3.B"] = {
-            "methods_with_rollback": methods_with_rollback,
-        }
-        print("  [PASS] All write methods have transaction rollback")
-        print(f"    - Methods checked: {methods_with_rollback}")
-    else:
-        results["10.3"]["B"] = "FAIL"
-        evidence["10.3.B"] = {
-            "methods_without_rollback": methods_without_rollback,
-            "methods_with_rollback": methods_with_rollback,
-        }
-        print(f"  [FAIL] Methods without rollback: {methods_without_rollback}")
-        print(f"  [INFO] Methods with rollback: {methods_with_rollback}")
+            results["10.3"]["B"] = "FAIL"
+            evidence["10.3.B"] = {
+                "methods_without_rollback": methods_without_rollback,
+                "methods_with_rollback": methods_with_rollback,
+            }
+            print(f"  [FAIL] Methods without rollback: {methods_without_rollback}")
+            print(f"  [INFO] Methods with rollback: {methods_with_rollback}")
+    finally:
+        import time
+        time.sleep(0.2)
+        try:
+            Path(db_path).unlink(missing_ok=True)
+        except:
+            pass
     
     # Test 10.3.C: Session Isolation
     print("\n[10.3.C] Session Isolation")

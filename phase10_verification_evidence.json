@@ -13,7 +13,7 @@
     },
     "10.3": {
       "A": "PASS",
-      "B": "FAIL",
+      "B": "PASS",
       "C": "PASS"
     },
     "10.4": {
@@ -79,7 +79,7 @@
     "10.2.B": {
       "example_entry": {
         "id": 6,
-        "timestamp": "2026-01-17T04:34:23.895021",
+        "timestamp": "2026-01-17T04:58:04.841576",
         "user_id": "test_user_123",
         "role": "analyst",
         "operation": "test_operation",
@@ -89,8 +89,8 @@
         "action": "read",
         "result": "success",
         "details": null,
-        "previous_hash": "1313218cce1282eed3f2843fdad61ae17aac07a844f225637941a7260ce0c142",
-        "entry_hash": "b5a7dae3a9d3037a2c192c33c662965c73c55956c99c65109be9dbb37c0bd698"
+        "previous_hash": "d78c327e45aab0219acc9aa9911cd5d211cdaafc79e746602cc6053165afa5c5",
+        "entry_hash": "781ae6c5392eb128e9d42aaad9ac64357839412aea61c67f822922349390a68c"
       },
       "has_all_fields": true
     },
@@ -107,13 +107,11 @@
       "errors": []
     },
     "10.3.B": {
-      "methods_without_rollback": [
-        "save_alert",
-        "update_incident_status"
-      ],
       "methods_with_rollback": [
+        "save_alert",
         "save_incident",
-        "update_alert_ack"
+        "update_alert_ack",
+        "update_incident_status"
       ]
     },
     "10.3.C": {
@@ -123,14 +121,14 @@
     "10.4.A": {
       "log_format": "JSON",
       "example": {
-        "timestamp": "2026-01-17T04:34:24.819882",
+        "timestamp": "2026-01-17T04:58:06.057094",
         "level": "INFO",
         "logger": "test",
         "message": "Test message",
-        "correlation_id": "f2aca585",
+        "correlation_id": "310a1c33",
         "module": "verify_phase10",
         "function": "test_10_4_observability",
-        "line": 516,
+        "line": 514,
         "test_key": "test_value"
       }
     },
@@ -144,18 +142,18 @@
       "has_context": true,
       "has_exception": true,
       "example": {
-        "timestamp": "2026-01-17T04:34:24.819882",
+        "timestamp": "2026-01-17T04:58:06.057596",
         "level": "ERROR",
         "logger": "test_error",
         "message": "Error occurred",
         "correlation_id": "test_corr_123",
         "module": "verify_phase10",
         "function": "test_10_4_observability",
-        "line": 590,
-        "exception": "Traceback (most recent call last):\n  File \"D:\\Cybersecurity-Projects\\verify_phase10.py\", line 588, in test_10_4_observability\n    raise ValueError(\"Test error for verification\")\nValueError: Test error for verification",
+        "line": 588,
+        "exception": "Traceback (most recent call last):\n  File \"D:\\Cybersecurity-Projects\\verify_phase10.py\", line 586, in test_10_4_observability\n    raise ValueError(\"Test error for verification\")\nValueError: Test error for verification",
         "test_context": "value"
       }
     }
   },
-  "timestamp": "2026-01-17T04:34:24.821380"
+  "timestamp": "2026-01-17T04:58:06.058600"
 }
