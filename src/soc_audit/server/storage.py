@@ -328,29 +328,29 @@ class SQLiteBackendStorage(BackendStorage):
         
         try:
             if "host_id" not in incident_dict:
-            raise ValueError("host_id is required for incidents")
+                raise ValueError("host_id is required for incidents")
 
-        cursor.execute(
-            """
-            INSERT OR REPLACE INTO incidents
-            (id, title, status, created_ts, updated_ts, severity_max, rba_max,
-             entity_summary_json, alert_count, notes, host_id)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """,
-            (
-                incident_dict["id"],
-                incident_dict["title"],
-                incident_dict["status"],
-                incident_dict["created_ts"],
-                incident_dict["updated_ts"],
-                incident_dict["severity_max"],
-                incident_dict.get("rba_max"),
-                json.dumps(incident_dict.get("entity_summary", {})),
-                incident_dict.get("alert_count", 0),
-                incident_dict.get("notes"),
-                incident_dict["host_id"],
-            ),
-        )
+            cursor.execute(
+                """
+                INSERT OR REPLACE INTO incidents
+                (id, title, status, created_ts, updated_ts, severity_max, rba_max,
+                 entity_summary_json, alert_count, notes, host_id)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+                (
+                    incident_dict["id"],
+                    incident_dict["title"],
+                    incident_dict["status"],
+                    incident_dict["created_ts"],
+                    incident_dict["updated_ts"],
+                    incident_dict["severity_max"],
+                    incident_dict.get("rba_max"),
+                    json.dumps(incident_dict.get("entity_summary", {})),
+                    incident_dict.get("alert_count", 0),
+                    incident_dict.get("notes"),
+                    incident_dict["host_id"],
+                ),
+            )
             
             conn.commit()
         except Exception:
