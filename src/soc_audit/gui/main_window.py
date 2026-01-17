@@ -279,6 +279,8 @@ class MainWindow:
             refresh_ms=1000,
             config=self.config,
         )
+        # Phase 9.4: Store reference to MainWindow for menu updates
+        self.dashboard_view._main_window_ref = self
         # Phase 6.2: Wire role update callback
         if hasattr(self.dashboard_view, "_backend_client"):
             # Callback will be set after backend client is initialized
@@ -499,6 +501,32 @@ class MainWindow:
             # Update backend client
             if backend_client:
                 backend_client.set_api_key(api_key)
+                
+                # Trigger a test request to establish role and fetch hosts (get_hosts is lightweight)
+                try:
+                    hosts = backend_client.get_hosts()  # This will set backend_role on success and populate hosts_cache
+                    # Log host count for visibility
+                    if hosts:
+                        print(f"[GUI] Authentication successful: {len(hosts)} host(s) available")
+                    else:
+                        print("[GUI] Authentication successful: no hosts yet")
+                except Exception as e:
+                    print(f"[GUI] Error fetching hosts after auth: {e}")
+                    # Non-critical, role will be set on next successful request
+                
+                # Update UI to reflect new authentication state
+                self._update_role_based_ui()
+                # Phase 9.4: Also update menu state based on host availability
+                self.update_backend_menu_state()
+                
+                # Add timeline entry
+                if hasattr(self.dashboard_view, "_add_timeline_entry"):
+                    self.dashboard_view._add_timeline_entry(
+                        f"[AUTH] API key updated, role: {backend_client.backend_role or 'unknown'}",
+                        "info",
+                        "auth"
+                    )
+                
                 messagebox.showinfo("Authentication", "API key updated for this session.")
             else:
                 messagebox.showerror("Error", "Backend client not available.")
@@ -518,64 +546,76 @@ class MainWindow:
     # Phase 7.3: Host scoping and status
     def _on_host_scope(self) -> None:
         """Handle View > Host Scope… menu action."""
-        backend_config = self.config.get("backend", {})
-        if not backend_config.get("enabled", False):
-            messagebox.showinfo(
-                "Host Scope",
-                "Backend mode is disabled.\n\n"
-                "Enable backend in config to use host scoping."
+        try:
+            backend_config = self.config.get("backend", {})
+            if not backend_config.get("enabled", False):
+                messagebox.showinfo(
+                    "Host Scope",
+                    "Backend mode is disabled.\n\n"
+                    "Enable backend in config to use host scoping."
+                )
+                return
+            
+            # Get current host scope
+            current_host_id = getattr(self.dashboard_view, "current_host_id", None)
+            
+            # Phase 9.4: Dialog will fetch hosts at open-time
+            # Show host scope dialog (pass backend_client reference instead of static hosts list)
+            from soc_audit.gui.dialogs.host_scope_dialog import HostScopeDialog
+            
+            backend_client = getattr(self.dashboard_view, "_backend_client", None)
+            if not backend_client:
+                messagebox.showwarning(
+                    "Backend Not Connected",
+                    "Backend client not available."
+                )
+                return
+            
+            def on_confirm(host_id: str | None):
+                self.dashboard_view._on_host_scope_change(host_id)
+            
+            HostScopeDialog(self.root, backend_client, current_host_id, on_confirm)
+        except Exception as e:
+            messagebox.showerror(
+                "Failed to open Host Scope",
+                f"Error: {str(e)}"
             )
-            return
-        
-        # Get hosts from backend
-        hosts = self.dashboard_view.get_hosts()
-        if not hosts:
-            messagebox.showinfo(
-                "Host Scope",
-                "No hosts found.\n\n"
-                "Ensure agents are registered with the backend server."
-            )
-            return
-        
-        # Get current host scope
-        current_host_id = getattr(self.dashboard_view, "current_host_id", None)
-        
-        # Show host scope dialog
-        from soc_audit.gui.dialogs.host_scope_dialog import HostScopeDialog
-        
-        def on_confirm(host_id: str | None):
-            self.dashboard_view._on_host_scope_change(host_id)
-        
-        HostScopeDialog(self.root, hosts, current_host_id, on_confirm)
+            print(f"[GUI] Error opening Host Scope dialog: {e}")
     
     def _on_host_status(self) -> None:
         """Handle Backend > Hosts… menu action."""
-        backend_config = self.config.get("backend", {})
-        if not backend_config.get("enabled", False):
-            messagebox.showinfo(
-                "Host Status",
-                "Backend mode is disabled.\n\n"
-                "Enable backend in config to view host status."
+        try:
+            backend_config = self.config.get("backend", {})
+            if not backend_config.get("enabled", False):
+                messagebox.showinfo(
+                    "Host Status",
+                    "Backend mode is disabled.\n\n"
+                    "Enable backend in config to view host status."
+                )
+                return
+            
+            backend_client = getattr(self.dashboard_view, "_backend_client", None)
+            if not backend_client:
+                messagebox.showwarning(
+                    "Backend Not Connected",
+                    "Backend client not available."
+                )
+                return
+            
+            # Get heartbeat interval from config
+            heartbeat_interval = backend_config.get("poll_interval_seconds", 10)
+            
+            # Phase 9.4: Dialog will fetch hosts at open-time
+            # Show host status dialog (pass backend_client reference instead of static hosts list)
+            from soc_audit.gui.dialogs.host_status_dialog import HostStatusDialog
+            
+            HostStatusDialog(self.root, backend_client, int(heartbeat_interval * 2))
+        except Exception as e:
+            messagebox.showerror(
+                "Failed to open Hosts",
+                f"Error: {str(e)}"
             )
-            return
-        
-        # Get hosts from backend
-        hosts = self.dashboard_view.get_hosts()
-        if not hosts:
-            messagebox.showinfo(
-                "Host Status",
-                "No hosts found.\n\n"
-                "Ensure agents are registered with the backend server."
-            )
-            return
-        
-        # Get heartbeat interval from config
-        heartbeat_interval = backend_config.get("poll_interval_seconds", 10)
-        
-        # Show host status dialog
-        from soc_audit.gui.dialogs.host_status_dialog import HostStatusDialog
-        
-        HostStatusDialog(self.root, hosts, int(heartbeat_interval * 2))
+            print(f"[GUI] Error opening Host Status dialog: {e}")
     
     def _update_role_based_ui(self) -> None:
         """Update UI elements based on backend role (Phase 6.2)."""
@@ -584,45 +624,56 @@ class MainWindow:
         
         backend_client = getattr(self.dashboard_view, "_backend_client", None)
         backend_connected = backend_client is not None
+        role = backend_client.backend_role if backend_client else None
         
-        # Phase 7.3: Enable/disable host menu items based on backend connection
-        if backend_enabled and backend_connected:
+        # Phase 7.3: Enable/disable host menu items based on backend connection and role
+        # Host menus require analyst or admin role
+        if backend_enabled and backend_connected and role in ["analyst", "admin"]:
             self.view_menu.entryconfig(self._host_scope_menu_item, state=tk.NORMAL)
             self.backend_menu.entryconfig(self._host_status_menu_item, state=tk.NORMAL)
-            # Phase 9.3: Enable export menu items when backend connected
-            if hasattr(self, "_export_submenu"):
-                self._export_submenu.entryconfig("Incident Report...", state=tk.NORMAL)
-                self._export_submenu.entryconfig("Host Report...", state=tk.NORMAL)
         else:
+            # Phase 9.4: Disable if not authenticated or backend disabled
             self.view_menu.entryconfig(self._host_scope_menu_item, state=tk.DISABLED)
             self.backend_menu.entryconfig(self._host_status_menu_item, state=tk.DISABLED)
-            # Phase 9.3: Disable export menu items when backend not connected
-            if hasattr(self, "_export_submenu"):
-                self._export_submenu.entryconfig("Incident Report...", state=tk.DISABLED)
-                self._export_submenu.entryconfig("Host Report...", state=tk.DISABLED)
         
-        if not backend_enabled:
-            # Backend disabled - all actions available (local mode)
-            return
+        # Phase 9.4: Update based on host availability
+        self.update_backend_menu_state()
+    
+    def update_backend_menu_state(self) -> None:
+        """
+        Phase 9.4: Dynamically enable/disable menu items based on host availability.
+        """
+        backend_config = self.config.get("backend", {})
+        backend_enabled = backend_config.get("enabled", False)
         
+        backend_client = getattr(self.dashboard_view, "_backend_client", None)
         if not backend_client:
+            # No backend client - disable host menus
+            if hasattr(self, "_host_scope_menu_item"):
+                self.view_menu.entryconfig(self._host_scope_menu_item, state=tk.DISABLED)
+            if hasattr(self, "_host_status_menu_item"):
+                self.backend_menu.entryconfig(self._host_status_menu_item, state=tk.DISABLED)
             return
         
+        # Check if authenticated (analyst/admin role)
         role = backend_client.backend_role
+        is_authenticated = role in ["analyst", "admin"]
         
-        # Phase 6.2: Gate incident actions based on role
-        if role == "admin":
-            # Admin: all actions enabled
-            self.incidents_menu.entryconfig("Close Incident", state=tk.NORMAL)
-            self.incidents_menu.entryconfig("Add Note...", state=tk.NORMAL)
-        elif role == "analyst":
-            # Analyst: can add notes, cannot close
-            self.incidents_menu.entryconfig("Close Incident", state=tk.DISABLED)
-            self.incidents_menu.entryconfig("Add Note...", state=tk.NORMAL)
+        # Check if hosts are available
+        has_hosts = backend_client.has_hosts() if hasattr(backend_client, "has_hosts") else False
+        
+        # Enable menu items only if backend is enabled, authenticated, and hosts are available
+        if backend_enabled and is_authenticated and has_hosts:
+            if hasattr(self, "_host_scope_menu_item"):
+                self.view_menu.entryconfig(self._host_scope_menu_item, state=tk.NORMAL)
+            if hasattr(self, "_host_status_menu_item"):
+                self.backend_menu.entryconfig(self._host_status_menu_item, state=tk.NORMAL)
+            print("[GUI] Host menu enabled")
         else:
-            # Unauthenticated or unknown: disable admin actions
-            self.incidents_menu.entryconfig("Close Incident", state=tk.DISABLED)
-            self.incidents_menu.entryconfig("Add Note...", state=tk.DISABLED)
+            if hasattr(self, "_host_scope_menu_item"):
+                self.view_menu.entryconfig(self._host_scope_menu_item, state=tk.DISABLED)
+            if hasattr(self, "_host_status_menu_item"):
+                self.backend_menu.entryconfig(self._host_status_menu_item, state=tk.DISABLED)
     
     # Phase 5.5: Alert actions
     def _on_ack_alert(self) -> None:

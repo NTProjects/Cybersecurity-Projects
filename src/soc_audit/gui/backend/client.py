@@ -69,6 +69,10 @@ class BackendClient:
         # Phase 8.2: Host status cache
         self._host_status_cache: dict[str, str] = {}  # host_id -> "ONLINE" | "OFFLINE" | "UNKNOWN"
         self._host_last_seen_cache: dict[str, str] = {}  # host_id -> last_seen_ts (ISO string)
+        
+        # Phase 9.4: Host availability tracking
+        self.hosts_ready = False
+        self.hosts_cache: list[dict[str, Any]] = []  # Cached host list
 
     def build_base_url(self) -> str:
         """Build the base API URL."""
@@ -110,12 +114,27 @@ class BackendClient:
             
             with request.urlopen(http_req, timeout=5) as response:
                 if response.status == 200:
-                    # Phase 6.2: Try to infer role from response headers or first successful request
+                    # Phase 6.2: Look up role from config based on API key
                     if self.api_key and not self.backend_role:
-                        # For MVP, we'll set role based on successful auth
-                        # In production, backend could return role in header
-                        # For now, default to analyst if key works
-                        self.backend_role = "analyst"  # Default, can be overridden
+                        try:
+                            from soc_audit.server.auth import get_role_from_api_key
+                            from soc_audit.core.config import load_config
+                            
+                            # Load config to get auth config
+                            config = load_config()
+                            backend_config = config.get("backend", {})
+                            auth_config = backend_config.get("auth", {})
+                            
+                            # Look up role from API key
+                            role = get_role_from_api_key(self.api_key, auth_config)
+                            if role:
+                                self.backend_role = role
+                            else:
+                                # Fallback: if key works but not in config, default to analyst
+                                self.backend_role = "analyst"
+                        except Exception:
+                            # If lookup fails, default to analyst for backward compatibility
+                            self.backend_role = "analyst"
                     return json.loads(response.read().decode("utf-8"))
                 elif response.status == 401:
                     self.last_error = "Authentication failed"
@@ -265,22 +284,67 @@ class BackendClient:
         """
         Get list of registered hosts from the backend.
 
+        Tolerant to multiple response shapes:
+        - {"ok": true, "hosts": [...]}  (canonical)
+        - {"hosts": [...]}              (partial)
+        - [...]                         (list-only, legacy)
+
         Returns:
             List of host dicts with host_id, host_name, first_seen_ts, last_seen_ts, meta.
             Returns empty list on error.
         """
         response = self._make_request("/api/v1/hosts")
-        if not response or not isinstance(response, dict):
+        
+        # Handle empty/None response
+        if not response:
+            print("[GUI] get_hosts(): empty response")
             return []
         
-        hosts = response.get("hosts", [])
+        # Handle list-only response (legacy)
+        if isinstance(response, list):
+            hosts = response
+            print(f"[GUI] get_hosts(): received {len(hosts)} host(s) (legacy list format)")
+        # Handle dict response
+        elif isinstance(response, dict):
+            # Try canonical shape: {"ok": true, "hosts": [...]}
+            if "hosts" in response:
+                hosts = response.get("hosts", [])
+                if not isinstance(hosts, list):
+                    print(f"[GUI] get_hosts(): unexpected response shape: hosts field is not a list")
+                    return []
+                print(f"[GUI] get_hosts(): received {len(hosts)} host(s)")
+            # Try legacy partial: just check if it's a dict with no "hosts" key
+            else:
+                print(f"[GUI] get_hosts(): unexpected response shape: dict missing 'hosts' key, keys: {list(response.keys())}")
+                return []
+        else:
+            print(f"[GUI] get_hosts(): unexpected response shape: {type(response)}")
+            return []
+        
+        # Validate hosts list contents
         if not isinstance(hosts, list):
+            print("[GUI] get_hosts(): hosts is not a list after parsing")
             return []
         
         # Phase 8.2: Update host status cache on successful get_hosts()
         self._update_host_status_cache(hosts)
         
+        # Phase 9.4: Update hosts cache and availability flag
+        was_empty = not self.hosts_cache
+        self.hosts_cache = hosts
+        if hosts and not self.hosts_ready:
+            self.hosts_ready = True
+        
         return hosts
+    
+    def has_hosts(self) -> bool:
+        """
+        Phase 9.4: Check if hosts are available.
+        
+        Returns:
+            True if hosts have been successfully fetched and cache is non-empty.
+        """
+        return self.hosts_ready and bool(self.hosts_cache)
     
     def _update_host_status_cache(self, hosts: list[dict[str, Any]]) -> None:
         """

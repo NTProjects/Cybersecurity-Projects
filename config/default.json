@@ -64,7 +64,7 @@
     "group_window_seconds": 300
   },
   "backend": {
-    "enabled": false,
+    "enabled": true,
     "host": "127.0.0.1",
     "port": 8001,
     "api_url": "http://127.0.0.1:8001",
@@ -74,7 +74,7 @@
     "api_key": "ADMIN_KEY",
     "role": "analyst",
     "auth": {
-      "enabled": false,
+      "enabled": true,
       "keys": [
         {"key": "ADMIN_KEY", "role": "admin"},
         {"key": "ANALYST_KEY", "role": "analyst"},

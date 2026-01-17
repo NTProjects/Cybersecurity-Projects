@@ -865,9 +865,15 @@ class DashboardView(ttk.Frame):
         if not alert_event.suppressed or self._show_suppressed:
             time_display = self._format_time_ago(alert_event.timestamp)
             
+            # Phase 8.2: Extract host_id early to avoid UnboundLocalError
+            host_id = getattr(alert_event, "host_id", None)
+            # Defensive guard: ensure host_id is never None when used
+            if not host_id:
+                host_id = "unknown"
+            
             # Phase 8.2: Get host status from backend client cache
             host_status = None
-            if self._backend_client and host_id:
+            if self._backend_client and host_id and host_id != "unknown":
                 host_status = self._backend_client.get_host_status(host_id)
             
             # Update Alerts panel with host status
@@ -876,8 +882,7 @@ class DashboardView(ttk.Frame):
             )
             
             # Phase 8.2: Update Timeline with [host_id | STATUS] prefix
-            host_id = getattr(alert_event, "host_id", None)
-            if host_id:
+            if host_id and host_id != "unknown":
                 # Get host status from backend client cache
                 host_status = "UNKNOWN"
                 if self._backend_client:
@@ -935,6 +940,10 @@ class DashboardView(ttk.Frame):
             severity="info" if status in ("connected", "polling") else "warning",
         )
         self.timeline_panel.append_event(finding, "backend", datetime.utcnow())
+        
+        # Log backend connection event
+        if status == "connected":
+            print(f"[GUI] Backend connected: {message}")
     
     def _add_timeline_entry(self, message: str, level: str = "info", source: str = "export") -> None:
         """
@@ -969,6 +978,10 @@ class DashboardView(ttk.Frame):
         if self.on_status:
             scope_name = f"Host: {host_id}" if host_id else "All Hosts"
             self.on_status(f"Host scope: {scope_name}")
+        
+        # Log host scope change
+        scope_name = f"Host: {host_id}" if host_id else "All Hosts"
+        print(f"[GUI] Host scope changed: {scope_name}")
     
     def _apply_host_filter(self) -> None:
         """Apply host filter to alerts panel."""
@@ -992,6 +1005,24 @@ class DashboardView(ttk.Frame):
         
         try:
             hosts = self._backend_client.get_hosts()
+            
+            # Phase 9.4: Detect when hosts become available
+            was_ready = self._backend_client.hosts_ready
+            is_now_ready = self._backend_client.has_hosts()
+            
+            if not was_ready and is_now_ready:
+                print(f"[GUI] Hosts became available")
+                # Notify MainWindow to update menu state
+                main_window = getattr(self, "_main_window_ref", None)
+                if main_window and hasattr(main_window, "update_backend_menu_state"):
+                    main_window.update_backend_menu_state()
+            
+            # Log when hosts list transitions from empty to non-empty
+            was_empty = len(self._hosts_list) == 0
+            is_non_empty = len(hosts) > 0
+            if was_empty and is_non_empty:
+                print(f"[GUI] Hosts list populated: {len(hosts)} host(s) available")
+            
             self._hosts_list = hosts
             return hosts
         except Exception:

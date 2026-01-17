@@ -22,7 +22,8 @@ class HostInfo(BaseModel):
 class HostListResponse(BaseModel):
     """Response schema for listing hosts."""
 
-    hosts: list[HostInfo]
+    ok: bool = True
+    hosts: list[HostInfo] = Field(default_factory=list)
 
 
 class HeartbeatRequest(BaseModel):

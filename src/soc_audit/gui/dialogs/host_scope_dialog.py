@@ -3,7 +3,10 @@ from __future__ import annotations
 
 import tkinter as tk
 from tkinter import messagebox, ttk
-from typing import Any, Callable
+from typing import Any, Callable, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from soc_audit.gui.backend.client import BackendClient
 
 
 class HostScopeDialog:
@@ -12,7 +15,7 @@ class HostScopeDialog:
     def __init__(
         self,
         parent: tk.Widget,
-        hosts: list[dict[str, Any]],
+        backend_client: BackendClient,
         current_host_id: str | None,
         on_confirm: Callable[[str | None], None],
     ):
@@ -21,12 +24,12 @@ class HostScopeDialog:
 
         Args:
             parent: Parent widget.
-            hosts: List of host dicts from backend.
+            backend_client: BackendClient instance for fetching hosts.
             current_host_id: Currently selected host_id (None = All Hosts).
             on_confirm: Callback invoked with selected host_id (None = All Hosts).
         """
         self.parent = parent
-        self.hosts = hosts
+        self.backend_client = backend_client
         self.current_host_id = current_host_id
         self.on_confirm = on_confirm
         self.selected_host_id: str | None = None
@@ -35,6 +38,28 @@ class HostScopeDialog:
 
     def _show_dialog(self) -> None:
         """Show the dialog."""
+        # Phase 9.4: Fetch hosts at open-time from backend client
+        try:
+            hosts = self.backend_client.get_hosts()
+            # Use cache if available, otherwise use fresh fetch
+            if not hosts and hasattr(self.backend_client, "hosts_cache"):
+                hosts = self.backend_client.hosts_cache
+        except Exception as e:
+            print(f"[GUI] Error fetching hosts in dialog: {e}")
+            hosts = []
+        
+        # Guard: If hosts list is empty, show info and return early
+        if not hosts or len(hosts) == 0:
+            messagebox.showinfo(
+                "Host Scope",
+                "No hosts found.\n\n"
+                "Ensure agents are registered with the backend server."
+            )
+            return
+        
+        print(f"[GUI] Host dialogs populated with {len(hosts)} hosts")
+        self.hosts = hosts
+        
         # Create dialog window
         self.dialog = tk.Toplevel(self.parent)
         self.dialog.title("Select Host Scope")
