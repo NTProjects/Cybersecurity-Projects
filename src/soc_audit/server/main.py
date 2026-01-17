@@ -10,7 +10,9 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from soc_audit.core.config import load_config
 from soc_audit.server.auth import get_auth_config
+from soc_audit.server.audit_log import AuditLogger
 from soc_audit.server.incident_engine import ServerIncidentEngine
+from soc_audit.server.middleware.audit_middleware import AuditLoggingMiddleware
 from soc_audit.server.routes import alerts, heartbeat, hosts, incidents, ingest, ingest_batch, reports
 from soc_audit.server.routes.ws import websocket_stream
 from soc_audit.server.storage import BackendStorage, SQLiteBackendStorage
@@ -26,6 +28,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Phase 10.2: Audit logging middleware (must be after CORS, before routes)
+app.add_middleware(AuditLoggingMiddleware)
 
 # Store dependencies in app.state during startup
 
@@ -98,10 +103,15 @@ async def startup_event():
     # Initialize WebSocket manager
     ws_manager = WebSocketManager()
 
+    # Phase 10.2: Initialize audit logger (separate database for audit trail)
+    audit_db_path = storage_config.get("audit_log_path", "data/soc_audit_audit.db")
+    audit_logger = AuditLogger(audit_db_path)
+
     # Store in app.state for dependency injection
     app.state.storage = storage
     app.state.incident_engine = incident_engine
     app.state.ws_manager = ws_manager
+    app.state.audit_logger = audit_logger  # Phase 10.2
     app.state.config = server_config
 
 
@@ -110,6 +120,9 @@ async def shutdown_event():
     """Cleanup on shutdown."""
     if hasattr(app.state, "storage") and hasattr(app.state.storage, "close"):
         app.state.storage.close()
+    # Phase 10.2: Close audit logger
+    if hasattr(app.state, "audit_logger") and hasattr(app.state.audit_logger, "close"):
+        app.state.audit_logger.close()
 
 
 # Include routers
