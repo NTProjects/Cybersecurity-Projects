@@ -65,11 +65,11 @@ async def ingest_event(
             }
         )
 
-        # Broadcast WebSocket updates
+        # Phase 11.1: Broadcast WebSocket updates with event types for subscription filtering
         if ws_manager:
-            await ws_manager.broadcast_json({"type": "alert", "data": updated_event})
+            await ws_manager.broadcast_json({"type": "alert", "data": updated_event}, event_type="alert")
             if incident:
-                await ws_manager.broadcast_json({"type": "incident", "data": incident})
+                await ws_manager.broadcast_json({"type": "incident", "data": incident}, event_type="incident")
 
         return IngestResponse(
             ok=True, alert_id=updated_event["id"], incident_id=incident["id"] if incident else None

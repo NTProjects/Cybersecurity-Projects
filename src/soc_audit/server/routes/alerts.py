@@ -183,9 +183,9 @@ async def suppress_alert(
         }
     )
 
-    # Broadcast update
+    # Phase 11.1: Broadcast update with event type for subscription filtering
     updated_alert = storage.get_alert(alert_id)
     if ws_manager and updated_alert:
-        await ws_manager.broadcast_json({"type": "alert", "data": updated_alert})
+        await ws_manager.broadcast_json({"type": "alert", "data": updated_alert}, event_type="alert")
 
     return updated_alert

@@ -92,10 +92,10 @@ async def close_incident(
         }
     )
 
-    # Broadcast update
+    # Phase 11.1: Broadcast update with event type for subscription filtering
     updated_incident = storage.get_incident(incident_id)
     if ws_manager and updated_incident:
-        await ws_manager.broadcast_json({"type": "incident", "data": updated_incident})
+        await ws_manager.broadcast_json({"type": "incident", "data": updated_incident}, event_type="incident")
 
     return updated_incident
 
@@ -149,9 +149,9 @@ async def add_incident_note(
         }
     )
 
-    # Broadcast update
+    # Phase 11.1: Broadcast update with event type for subscription filtering
     updated_incident = storage.get_incident(incident_id)
     if ws_manager and updated_incident:
-        await ws_manager.broadcast_json({"type": "incident", "data": updated_incident})
+        await ws_manager.broadcast_json({"type": "incident", "data": updated_incident}, event_type="incident")
 
     return updated_incident

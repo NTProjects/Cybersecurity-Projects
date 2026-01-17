@@ -1,6 +1,8 @@
 """WebSocket streaming endpoint."""
 from __future__ import annotations
 
+import json
+
 from fastapi import WebSocket, WebSocketDisconnect
 
 from soc_audit.server.auth import get_role_from_websocket
@@ -44,22 +46,65 @@ async def websocket_stream(websocket: WebSocket):
         await websocket.close(code=1011, reason="Server configuration error")
         return
 
-    # Register websocket with manager (after auth succeeds and connection accepted)
-    ws_manager.connect(websocket)
+    # Phase 11.1: Register websocket with manager (returns connection object)
+    conn = await ws_manager.connect(websocket, role)
 
     try:
-        # Send initial connection message
+        # Phase 11.1: Send initial connection message with subscription info
         await ws_manager.send_personal_json(
-            websocket, {"type": "connected", "message": "WebSocket connected"}
+            websocket,
+            {
+                "type": "connected",
+                "message": "WebSocket connected",
+                "subscriptions": ["alert", "incident", "host"],  # Default subscriptions
+                "role": role,
+            }
         )
 
-        # Keep connection alive and handle messages
+        # Phase 11.1: Keep connection alive and handle subscription messages
         while True:
             try:
-                # Wait for client messages (optional - can be one-way)
+                # Wait for client messages (subscription control)
                 data = await websocket.receive_text()
-                # Echo or process message (optional)
-                await ws_manager.send_personal_json(websocket, {"type": "echo", "data": data})
+                
+                try:
+                    message = json.loads(data)
+                    msg_type = message.get("type")
+                    
+                    if msg_type == "subscribe":
+                        # Subscribe to event types
+                        event_types = message.get("events", [])
+                        for event_type in event_types:
+                            await ws_manager.subscribe(websocket, event_type)
+                        await ws_manager.send_personal_json(
+                            websocket,
+                            {"type": "subscribed", "events": event_types}
+                        )
+                    elif msg_type == "unsubscribe":
+                        # Unsubscribe from event types
+                        event_types = message.get("events", [])
+                        for event_type in event_types:
+                            await ws_manager.unsubscribe(websocket, event_type)
+                        await ws_manager.send_personal_json(
+                            websocket,
+                            {"type": "unsubscribed", "events": event_types}
+                        )
+                    elif msg_type == "ping":
+                        # Keepalive ping
+                        await ws_manager.send_personal_json(websocket, {"type": "pong"})
+                    else:
+                        # Unknown message type
+                        await ws_manager.send_personal_json(
+                            websocket,
+                            {"type": "error", "message": f"Unknown message type: {msg_type}"}
+                        )
+                except json.JSONDecodeError:
+                    # Invalid JSON - echo back as error
+                    await ws_manager.send_personal_json(
+                        websocket,
+                        {"type": "error", "message": "Invalid JSON"}
+                    )
+                    
             except WebSocketDisconnect:
                 break
             except Exception:
