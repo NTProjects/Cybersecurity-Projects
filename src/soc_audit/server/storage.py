@@ -442,8 +442,8 @@ class SQLiteBackendStorage(BackendStorage):
         
         try:
             now = ts or datetime.utcnow().isoformat()
-
-        # Ensure host exists; if not, create minimal record
+            
+            # Ensure host exists; if not, create minimal record
         cursor.execute(
             "SELECT host_id, host_name, first_seen_ts, meta_json FROM hosts WHERE host_id = ?",
             (host_id,),
@@ -466,7 +466,10 @@ class SQLiteBackendStorage(BackendStorage):
             """,
             (host_id, host_name, first_seen_ts, now, meta_json),
         )
-        conn.commit()
+            conn.commit()
+        except Exception:
+            conn.rollback()
+            raise
 
     def list_hosts(self) -> list[dict[str, Any]]:
         """List all known hosts, sorted by last_seen_ts DESC."""
@@ -681,58 +684,79 @@ class SQLiteBackendStorage(BackendStorage):
             return None
 
     def update_alert_ack(self, alert_id: str, acked: bool, acked_at: str | None = None) -> None:
-        """Update alert acknowledgement status."""
+        """
+        Update alert acknowledgement status.
+        
+        Phase 10.3: Thread-safe with transaction rollback on error.
+        """
         conn = self._get_connection()
         cursor = conn.cursor()
-
-        cursor.execute(
-            "UPDATE alerts SET acked = ? WHERE id = ?",
-            (1 if acked else 0, alert_id),
-        )
-
-        conn.commit()
+        
+        try:
+            cursor.execute(
+                "UPDATE alerts SET acked = ? WHERE id = ?",
+                (1 if acked else 0, alert_id),
+            )
+            conn.commit()
+        except Exception:
+            conn.rollback()
+            raise
 
     def update_alert_suppressed(
         self, alert_id: str, suppressed: bool, suppressed_until: str | None = None
     ) -> None:
-        """Update alert suppression status."""
+        """
+        Update alert suppression status.
+        
+        Phase 10.3: Thread-safe with transaction rollback on error.
+        """
         conn = self._get_connection()
         cursor = conn.cursor()
-
-        cursor.execute(
-            "UPDATE alerts SET suppressed = ?, suppressed_until = ? WHERE id = ?",
-            (1 if suppressed else 0, suppressed_until, alert_id),
-        )
-
-        conn.commit()
+        
+        try:
+            cursor.execute(
+                "UPDATE alerts SET suppressed = ?, suppressed_until = ? WHERE id = ?",
+                (1 if suppressed else 0, suppressed_until, alert_id),
+            )
+            conn.commit()
+        except Exception:
+            conn.rollback()
+            raise
 
     def update_incident_status(
         self, incident_id: str, status: str | None = None, notes: str | None = None
     ) -> None:
-        """Update incident status and/or notes."""
+        """
+        Update incident status and/or notes.
+        
+        Phase 10.3: Thread-safe with transaction rollback on error.
+        """
         conn = self._get_connection()
         cursor = conn.cursor()
+        
+        try:
+            updates = []
+            params: list[Any] = []
 
-        updates = []
-        params: list[Any] = []
+            if status is not None:
+                updates.append("status = ?")
+                params.append(status)
 
-        if status is not None:
-            updates.append("status = ?")
-            params.append(status)
+            if notes is not None:
+                updates.append("notes = ?")
+                params.append(notes)
 
-        if notes is not None:
-            updates.append("notes = ?")
-            params.append(notes)
+            updates.append("updated_ts = ?")
+            params.append(datetime.utcnow().isoformat())
 
-        updates.append("updated_ts = ?")
-        params.append(datetime.utcnow().isoformat())
+            params.append(incident_id)
 
-        params.append(incident_id)
-
-        query = f"UPDATE incidents SET {', '.join(updates)} WHERE id = ?"
-        cursor.execute(query, params)
-
-        conn.commit()
+            query = f"UPDATE incidents SET {', '.join(updates)} WHERE id = ?"
+            cursor.execute(query, params)
+            conn.commit()
+        except Exception:
+            conn.rollback()
+            raise
 
     def add_incident_note(self, incident_id: str, note: str) -> None:
         """Add note to incident."""
