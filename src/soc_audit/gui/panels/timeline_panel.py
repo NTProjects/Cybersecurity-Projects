@@ -147,8 +147,14 @@ class TimelinePanel(ttk.LabelFrame):
     
     def flush(self) -> None:
         """Flush pending updates and restore text widget state if needed."""
+        # Performance: Only disable if we actually enabled it
+        # This reduces unnecessary state changes
         if self._text_state_normal:
-            self.text.config(state=tk.DISABLED)
+            try:
+                self.text.config(state=tk.DISABLED)
+            except tk.TclError:
+                # Widget might be destroyed, ignore
+                pass
             self._text_state_normal = False
 
     def clear(self) -> None:

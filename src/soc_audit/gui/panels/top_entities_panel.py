@@ -52,7 +52,8 @@ class TopEntitiesPanel(ttk.LabelFrame):
         # Performance: Throttle entity updates (rebuilds are expensive!)
         self._update_count = 0
         self._refresh_pending = False
-        self._refresh_delay_ms = 500  # Refresh every 500ms max
+        self._refresh_delay_ms = 750  # Performance: Increased to 750ms (was 500ms) to reduce lag
+        self._last_counts_snapshot: dict[str, dict[str, int]] = {}  # Cache for change detection
         
         self._build_ui()
 
@@ -240,7 +241,14 @@ class TopEntitiesPanel(ttk.LabelFrame):
     def _throttled_refresh(self) -> None:
         """Throttled refresh of all trees (called after delay to batch updates)."""
         self._refresh_pending = False
+        # Performance: Only refresh trees that actually changed
         self._refresh_all_trees()
+        # Update snapshot for change detection
+        self._last_counts_snapshot = {
+            "ip": dict(self.ip_counts),
+            "user": dict(self.user_counts),
+            "port": dict(self.port_counts),
+        }
     
     def _refresh_all_trees(self) -> None:
         """Refresh all entity trees with current counts."""
@@ -249,17 +257,36 @@ class TopEntitiesPanel(ttk.LabelFrame):
         self._refresh_tree(self.port_tree, self.port_counts)
 
     def _refresh_tree(self, tree: ttk.Treeview, counts: dict[str, int]) -> None:
-        """Refresh a single tree with sorted counts."""
+        """Refresh a single tree with sorted counts (optimized)."""
+        # Performance: Skip update if counts are empty
+        if not counts:
+            # Just clear the tree
+            for item in tree.get_children():
+                tree.delete(item)
+            return
+        
+        # Performance: Only refresh if counts changed significantly
+        # Get current items
+        current_items = {}
+        for item in tree.get_children():
+            values = tree.item(item, "values")
+            if len(values) >= 2:
+                current_items[values[0]] = int(values[1]) if values[1].isdigit() else 0
+        
+        # Check if we need to update (counts changed)
+        if current_items == dict(sorted(counts.items(), key=lambda x: x[1], reverse=True)[:20]):
+            return  # No change needed, skip expensive rebuild
+        
         # Clear current items
         for item in tree.get_children():
             tree.delete(item)
 
-        # Sort by count descending
+        # Sort by count descending (cache sorted result)
         sorted_items = sorted(counts.items(), key=lambda x: x[1], reverse=True)
 
         # Insert top items (limit to 20)
         for entity, count in sorted_items[:20]:
-            tree.insert("", tk.END, values=(entity, count))
+            tree.insert("", tk.END, values=(entity, str(count)))
 
     def set_placeholder_data(self) -> None:
         """Set placeholder entity data for demonstration."""

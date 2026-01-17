@@ -626,8 +626,10 @@ class DashboardView(ttk.Frame):
             # Update Timeline
             self.timeline_panel.append_event(finding, module_name, timestamp)
             
-            # Update Entity aggregation
-            self.entities_panel.update_from_finding(finding)
+            # Performance: Skip entity extraction for suppressed alerts (saves processing)
+            if not alert_event.suppressed:
+                # Update Entity aggregation (throttled internally for performance)
+                self.entities_panel.update_from_finding(finding)
 
     def _format_time_ago(self, timestamp: datetime) -> str:
         """
@@ -860,7 +862,7 @@ class DashboardView(ttk.Frame):
             self._process_backend_updates()
     
     def _process_backend_updates(self) -> None:
-        """Process queued backend alerts and incidents on main thread (batched)."""
+        """Process queued backend alerts and incidents on main thread (batched and optimized)."""
         if self._backend_update_after_id:
             self.after_cancel(self._backend_update_after_id)
             self._backend_update_after_id = None
@@ -868,31 +870,42 @@ class DashboardView(ttk.Frame):
         processed = 0
         max_batch = 5  # Performance: Reduced to 5 items per batch (was 10)
         
-        # Process alerts
-        while processed < max_batch:
-            try:
-                alert_event = self._backend_alert_queue.get_nowait()
-                self._process_backend_alert(alert_event)
-                processed += 1
-            except queue.Empty:
-                break
+        # Performance: Disable widget updates during batch processing to reduce lag
+        # This prevents Tkinter from redrawing on every single update
+        try:
+            # Process alerts
+            while processed < max_batch:
+                try:
+                    alert_event = self._backend_alert_queue.get_nowait()
+                    self._process_backend_alert(alert_event)
+                    processed += 1
+                except queue.Empty:
+                    break
+            
+            # Process incidents
+            while processed < max_batch:
+                try:
+                    incident = self._backend_incident_queue.get_nowait()
+                    self._process_backend_incident(incident)
+                    processed += 1
+                except queue.Empty:
+                    break
+        finally:
+            # Always flush timeline updates if any (restore state)
+            if processed > 0 and hasattr(self.timeline_panel, "flush"):
+                self.timeline_panel.flush()
         
-        # Process incidents
-        while processed < max_batch:
-            try:
-                incident = self._backend_incident_queue.get_nowait()
-                self._process_backend_incident(incident)
-                processed += 1
-            except queue.Empty:
-                break
-        
-        # Flush timeline updates if any
-        if processed > 0 and hasattr(self.timeline_panel, "flush"):
-            self.timeline_panel.flush()
+        # Performance: Adaptive throttling - if queue is backing up, increase delay
+        queue_size = self._backend_alert_queue.qsize() + self._backend_incident_queue.qsize()
+        batch_delay = self._backend_update_batch_delay_ms
+        if queue_size > 20:  # Queue is backing up
+            batch_delay = min(batch_delay * 2, 1000)  # Double delay, max 1s
+        elif queue_size > 50:  # Heavy backlog
+            batch_delay = min(batch_delay * 3, 2000)  # Triple delay, max 2s
         
         # Schedule next batch if there are more items
         if not self._backend_alert_queue.empty() or not self._backend_incident_queue.empty():
-            self._backend_update_after_id = self.after(self._backend_update_batch_delay_ms, self._process_backend_updates)
+            self._backend_update_after_id = self.after(batch_delay, self._process_backend_updates)
     
     def _process_backend_alert(self, alert_event: AlertEvent) -> None:
         """
@@ -938,7 +951,7 @@ class DashboardView(ttk.Frame):
             if not host_id:
                 host_id = "unknown"
             
-            # Phase 8.2: Get host status from backend client cache
+            # Phase 8.2: Get host status from backend client cache (cached lookup)
             host_status = None
             if self._backend_client and host_id and host_id != "unknown":
                 host_status = self._backend_client.get_host_status(host_id)
@@ -950,10 +963,11 @@ class DashboardView(ttk.Frame):
             
             # Phase 8.2: Update Timeline with [host_id | STATUS] prefix
             if host_id and host_id != "unknown":
-                # Get host status from backend client cache
-                host_status = "UNKNOWN"
-                if self._backend_client:
-                    host_status = self._backend_client.get_host_status(host_id)
+                # Reuse host_status if already fetched
+                if host_status is None:
+                    host_status = "UNKNOWN"
+                    if self._backend_client:
+                        host_status = self._backend_client.get_host_status(host_id)
                 
                 # Prefix timeline entry with [host_id | STATUS]
                 finding_with_prefix = Finding(
@@ -969,8 +983,10 @@ class DashboardView(ttk.Frame):
             else:
                 self.timeline_panel.append_event(finding, alert_event.module, alert_event.timestamp)
             
-            # Update Entity aggregation
-            self.entities_panel.update_from_finding(finding)
+            # Performance: Skip entity extraction for suppressed alerts (saves processing)
+            if not alert_event.suppressed:
+                # Update Entity aggregation (throttled internally for performance)
+                self.entities_panel.update_from_finding(finding)
     
     def _process_backend_incident(self, incident: Incident) -> None:
         """

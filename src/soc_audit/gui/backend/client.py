@@ -59,6 +59,7 @@ class BackendClient:
         self._ws_thread: threading.Thread | None = None
         self._ws_connected = False
         self._last_poll_time: float = 0
+        self._last_host_poll_time: float = 0  # Performance: Track host polling separately
         self._seen_alert_ids: set[str] = set()  # Deduplication
         
         # Status tracking
@@ -492,12 +493,17 @@ class BackendClient:
                     print(f"[GUI] Error polling incidents: {incident_error}")
                 
                 # Phase 8.2: Poll hosts to update status cache (only if authenticated)
+                # Performance: Throttle host polling - only poll every 5th cycle to reduce overhead
                 if self.api_key and self.backend_role in ["analyst", "admin"]:
-                    try:
-                        self.get_hosts()  # Updates cache internally
-                    except Exception as host_error:
-                        # Non-critical, continue polling
-                        pass
+                    # Use _last_poll_time to track host polling frequency
+                    time_since_poll = time.time() - getattr(self, "_last_host_poll_time", 0)
+                    if time_since_poll > 25.0:  # Poll hosts every 25 seconds (5 cycles at 5s interval)
+                        try:
+                            self.get_hosts()  # Updates cache internally
+                            self._last_host_poll_time = time.time()
+                        except Exception as host_error:
+                            # Non-critical, continue polling
+                            pass
                 
                 self._last_poll_time = time.time()
                 self.last_error = None

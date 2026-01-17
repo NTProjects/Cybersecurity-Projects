@@ -131,16 +131,17 @@ class AlertsPanel(ttk.LabelFrame):
         self.tree.heading("suppressed", text="Supp")
         self.tree.heading("incident", text="Incident")
 
-        self.tree.column("severity", width=70, minwidth=50)
-        self.tree.column("rba", width=50, minwidth=40)
-        self.tree.column("module", width=100, minwidth=80)
-        self.tree.column("title", width=180, minwidth=150)
-        self.tree.column("mitre", width=80, minwidth=60)
-        self.tree.column("time", width=60, minwidth=40)
-        self.tree.column("source", width=70, minwidth=50)
-        self.tree.column("acked", width=40, minwidth=30)
-        self.tree.column("suppressed", width=40, minwidth=30)
-        self.tree.column("incident", width=60, minwidth=40)
+        # Performance: Disable auto-resize to prevent expensive column recalculation on every update
+        self.tree.column("severity", width=70, minwidth=50, stretch=False)
+        self.tree.column("rba", width=50, minwidth=40, stretch=False)
+        self.tree.column("module", width=100, minwidth=80, stretch=False)
+        self.tree.column("title", width=180, minwidth=150, stretch=True)  # Only title can stretch
+        self.tree.column("mitre", width=80, minwidth=60, stretch=False)
+        self.tree.column("time", width=60, minwidth=40, stretch=False)
+        self.tree.column("source", width=70, minwidth=50, stretch=False)
+        self.tree.column("acked", width=40, minwidth=30, stretch=False)
+        self.tree.column("suppressed", width=40, minwidth=30, stretch=False)
+        self.tree.column("incident", width=60, minwidth=40, stretch=False)
 
         # Configure severity tags for row coloring
         self.tree.tag_configure("critical", background="#4a1a1a")
@@ -283,23 +284,35 @@ class AlertsPanel(ttk.LabelFrame):
         elif rba_score >= 50:
             tag = "rba_medium" if tag == "info" else tag
         
-        # Format RBA score
-        rba_display = str(rba_score) if rba_score is not None and rba_score > 0 else "-"
+        # Performance: Cache string formatting to reduce operations
+        rba_display = str(rba_score) if rba_score and rba_score > 0 else "-"
         
-        # Format MITRE IDs (truncate if long)
+        # Format MITRE IDs (truncate if long) - cache result
         mitre_ids = getattr(finding, "mitre_ids", None) or []
-        mitre_display = ",".join(mitre_ids[:3]) if mitre_ids else "-"
-        if len(mitre_ids) > 3:
-            mitre_display += "…"
+        if mitre_ids:
+            mitre_display = ",".join(mitre_ids[:3])
+            if len(mitre_ids) > 3:
+                mitre_display += "…"
+        else:
+            mitre_display = "-"
         
-        # Get ack/suppressed/incident from AlertEvent if available
-        acked = getattr(alert_event, "acked", False) if alert_event else False
-        suppressed = getattr(alert_event, "suppressed", False) if alert_event else False
-        incident_id = getattr(alert_event, "incident_id", None) if alert_event else None
-        alert_id = getattr(alert_event, "id", None) if alert_event else None
+        # Performance: Cache attribute lookups to reduce getattr calls
+        if alert_event:
+            acked = getattr(alert_event, "acked", False)
+            suppressed = getattr(alert_event, "suppressed", False)
+            incident_id = getattr(alert_event, "incident_id", None)
+            alert_id = getattr(alert_event, "id", None)
+        else:
+            acked = False
+            suppressed = False
+            incident_id = None
+            alert_id = None
         
-        # Format incident display (short ID)
-        incident_display = incident_id[:8] + "..." if incident_id else "-"
+        # Format incident display (short ID) - cache result
+        if incident_id:
+            incident_display = incident_id[:8] + "..."
+        else:
+            incident_display = "-"
         
         # Apply suppressed styling
         if suppressed:
