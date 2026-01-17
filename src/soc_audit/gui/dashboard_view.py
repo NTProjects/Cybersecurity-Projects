@@ -14,7 +14,7 @@ from __future__ import annotations
 import queue
 import tkinter as tk
 from dataclasses import replace
-from datetime import datetime
+from datetime import datetime, timezone
 from tkinter import ttk
 from typing import TYPE_CHECKING, Any, Callable
 
