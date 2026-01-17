@@ -99,5 +99,53 @@
     "batch_interval": 5,
     "retry_initial_seconds": 1,
     "retry_max_seconds": 30
+  },
+  "local_security_scans": {
+    "enabled": true,
+    "firewall": {
+      "enabled": true,
+      "check_firewall_enabled": true,
+      "check_default_inbound_policy": true,
+      "check_allow_all_rules": true,
+      "check_open_inbound_rules": true,
+      "check_logging_enabled": true,
+      "platforms": {
+        "windows_defender_firewall": true,
+        "iptables": true,
+        "nftables": true
+      }
+    },
+    "authentication": {
+      "enabled": true,
+      "check_local_admin_accounts": true,
+      "check_guest_account_status": true,
+      "check_password_policy": {
+        "min_length": 12,
+        "require_complexity": true
+      },
+      "check_account_lockout_policy": true
+    },
+    "logging": {
+      "enabled": true,
+      "check_audit_logging_enabled": true,
+      "check_auth_log_sources": true,
+      "check_log_retention_days": {
+        "minimum": 30
+      },
+      "check_log_file_permissions": true
+    },
+    "system_hardening": {
+      "enabled": true,
+      "check_secure_boot": true,
+      "check_disk_encryption": true,
+      "check_automatic_updates_enabled": true,
+      "check_time_sync_enabled": true
+    },
+    "endpoint_protection": {
+      "enabled": true,
+      "check_antivirus_present": true,
+      "check_real_time_protection": true,
+      "check_tamper_protection": true
+    }
   }
 }
