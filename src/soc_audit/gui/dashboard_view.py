@@ -951,10 +951,12 @@ class DashboardView(ttk.Frame):
             if not host_id:
                 host_id = "unknown"
             
-            # Phase 8.2: Get host status from backend client cache (cached lookup)
+            # Phase 8.2: Get host status from backend client cache (single lookup, reused)
             host_status = None
-            if self._backend_client and host_id and host_id != "unknown":
+            if self._backend_client and host_id != "unknown":
                 host_status = self._backend_client.get_host_status(host_id)
+            if not host_status:
+                host_status = "UNKNOWN"
             
             # Update Alerts panel with host status
             self.alerts_panel.append_finding(
@@ -962,14 +964,8 @@ class DashboardView(ttk.Frame):
             )
             
             # Phase 8.2: Update Timeline with [host_id | STATUS] prefix
-            if host_id and host_id != "unknown":
-                # Reuse host_status if already fetched
-                if host_status is None:
-                    host_status = "UNKNOWN"
-                    if self._backend_client:
-                        host_status = self._backend_client.get_host_status(host_id)
-                
-                # Prefix timeline entry with [host_id | STATUS]
+            if host_id != "unknown":
+                # Prefix timeline entry with [host_id | STATUS] (reuse already-fetched host_status)
                 finding_with_prefix = Finding(
                     title=f"[{host_id} | {host_status}] {alert_event.title}",
                     description=finding.description,
