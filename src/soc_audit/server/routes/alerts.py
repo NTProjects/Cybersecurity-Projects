@@ -92,7 +92,8 @@ async def ack_alert(
 
     Phase 10.1: Requires analyst or admin role.
     """
-
+    with log_performance("ack_alert", logger):
+        try:
             alert = storage.get_alert(alert_id)
             if not alert:
                 raise HTTPException(status_code=404, detail="Alert not found")
@@ -113,10 +114,10 @@ async def ack_alert(
                 }
             )
 
-            # Broadcast update
+            # Phase 11.1: Broadcast update with event type for subscription filtering
             updated_alert = storage.get_alert(alert_id)
             if ws_manager and updated_alert:
-                await ws_manager.broadcast_json({"type": "alert", "data": updated_alert})
+                await ws_manager.broadcast_json({"type": "alert", "data": updated_alert}, event_type="alert")
 
             logger.info(
                 f"Alert {alert_id} {'acknowledged' if ack_request.acked else 'unacknowledged'}",
