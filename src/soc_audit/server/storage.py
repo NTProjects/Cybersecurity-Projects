@@ -368,21 +368,21 @@ class SQLiteBackendStorage(BackendStorage):
         
         try:
             cursor.execute(
-            """
-            INSERT INTO timeline (timestamp, message, level, source, module, alert_id, incident_id, host_id)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-        """,
-            (
-                entry_dict.get("timestamp", datetime.utcnow().isoformat()),
-                entry_dict["message"],
-                entry_dict["level"],
-                entry_dict["source"],
-                entry_dict["module"],
-                entry_dict.get("alert_id"),
-                entry_dict.get("incident_id"),
-                entry_dict.get("host_id"),
-            ),
-        )
+                """
+                INSERT INTO timeline (timestamp, message, level, source, module, alert_id, incident_id, host_id)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+                (
+                    entry_dict.get("timestamp", datetime.utcnow().isoformat()),
+                    entry_dict["message"],
+                    entry_dict["level"],
+                    entry_dict["source"],
+                    entry_dict["module"],
+                    entry_dict.get("alert_id"),
+                    entry_dict.get("incident_id"),
+                    entry_dict.get("host_id"),
+                ),
+            )
             
             conn.commit()
         except Exception:
@@ -405,30 +405,30 @@ class SQLiteBackendStorage(BackendStorage):
         host_name = host_info.get("host_name")
         now = datetime.utcnow().isoformat()
 
-        # Load existing host (if any) to preserve first_seen_ts / meta
-        cursor.execute(
-            "SELECT host_id, host_name, first_seen_ts, last_seen_ts, meta_json FROM hosts WHERE host_id = ?",
-            (host_id,),
-        )
-        row = cursor.fetchone()
+            # Load existing host (if any) to preserve first_seen_ts / meta
+            cursor.execute(
+                "SELECT host_id, host_name, first_seen_ts, last_seen_ts, meta_json FROM hosts WHERE host_id = ?",
+                (host_id,),
+            )
+            row = cursor.fetchone()
 
-        if row:
-            first_seen_ts = row["first_seen_ts"]
-            meta = json.loads(row["meta_json"]) if row["meta_json"] else {}
-            # Merge metadata
-            meta.update(host_info.get("meta", {}))
-        else:
-            first_seen_ts = now
-            meta = host_info.get("meta", {})
+            if row:
+                first_seen_ts = row["first_seen_ts"]
+                meta = json.loads(row["meta_json"]) if row["meta_json"] else {}
+                # Merge metadata
+                meta.update(host_info.get("meta", {}))
+            else:
+                first_seen_ts = now
+                meta = host_info.get("meta", {})
 
-        cursor.execute(
-            """
-            INSERT OR REPLACE INTO hosts
-            (host_id, host_name, first_seen_ts, last_seen_ts, meta_json)
-            VALUES (?, ?, ?, ?, ?)
-            """,
-            (host_id, host_name, first_seen_ts, now, json.dumps(meta) if meta else None),
-        )
+            cursor.execute(
+                """
+                INSERT OR REPLACE INTO hosts
+                (host_id, host_name, first_seen_ts, last_seen_ts, meta_json)
+                VALUES (?, ?, ?, ?, ?)
+                """,
+                (host_id, host_name, first_seen_ts, now, json.dumps(meta) if meta else None),
+            )
             conn.commit()
         except Exception:
             conn.rollback()
