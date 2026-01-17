@@ -64,14 +64,3 @@ class BaseModule(ABC):
         """Execute the module and return structured results."""
 
 
-class ComplianceRule(ABC):
-    """Interface for compliance checks used by the compliance engine."""
-
-    id: str
-    title: str
-    description: str
-    standard: str
-
-    @abstractmethod
-    def evaluate(self, context: ModuleContext) -> Finding | None:
-        """Return a finding if the rule fails, otherwise None."""

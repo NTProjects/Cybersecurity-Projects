@@ -1,6 +1,6 @@
 {
   "phase_status": {
-    "10": "PASS",
+    "10": "PARTIAL",
     "11": "PARTIAL",
     "12": "PASS",
     "13": "PASS",
@@ -24,7 +24,7 @@
         "D": "PASS"
       },
       "10.3": {
-        "A": "PASS",
+        "A": "PARTIAL",
         "B": "PASS",
         "C": "PASS"
       },
@@ -188,7 +188,7 @@
       "10.2.B": {
         "example_entry": {
           "id": 6,
-          "timestamp": "2026-01-17T04:58:04.841576",
+          "timestamp": "2026-01-17T05:07:17.533969",
           "user_id": "test_user_123",
           "role": "analyst",
           "operation": "test_operation",
@@ -198,8 +198,8 @@
           "action": "read",
           "result": "success",
           "details": null,
-          "previous_hash": "d78c327e45aab0219acc9aa9911cd5d211cdaafc79e746602cc6053165afa5c5",
-          "entry_hash": "781ae6c5392eb128e9d42aaad9ac64357839412aea61c67f822922349390a68c"
+          "previous_hash": "a95fbbc12d5cf6713b94e19b255e55765a176636be664a1ae102f7f1375a0bcf",
+          "entry_hash": "80db6e2dc7c9fa05cc343c08f91cf0ff30396c60faf5df6f2382bce59179d580"
         },
         "has_all_fields": true
       },
@@ -212,8 +212,13 @@
         "errors": []
       },
       "10.3.A": {
-        "concurrent_reads": 5,
-        "errors": []
+        "read_successes": 4,
+        "errors": [
+          [
+            4,
+            "bad parameter or other API misuse"
+          ]
+        ]
       },
       "10.3.B": {
         "methods_with_rollback": [
@@ -230,11 +235,11 @@
       "10.4.A": {
         "log_format": "JSON",
         "example": {
-          "timestamp": "2026-01-17T04:58:06.057094",
+          "timestamp": "2026-01-17T05:07:18.766339",
           "level": "INFO",
           "logger": "test",
           "message": "Test message",
-          "correlation_id": "310a1c33",
+          "correlation_id": "0ea0c95a",
           "module": "verify_phase10",
           "function": "test_10_4_observability",
           "line": 514,
@@ -251,7 +256,7 @@
         "has_context": true,
         "has_exception": true,
         "example": {
-          "timestamp": "2026-01-17T04:58:06.057596",
+          "timestamp": "2026-01-17T05:07:18.766339",
           "level": "ERROR",
           "logger": "test_error",
           "message": "Error occurred",
@@ -447,6 +452,7 @@
   },
   "blocking_issues": [],
   "downgrades_required": [
+    "Phase 10",
     "Phase 11",
     "Phase 14",
     "Phase 15",
@@ -454,5 +460,5 @@
     "Phase 17",
     "Phase 18"
   ],
-  "timestamp": "2026-01-17T05:06:39.346716"
+  "timestamp": "2026-01-17T05:07:22.487437"
 }
