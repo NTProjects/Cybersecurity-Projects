@@ -447,28 +447,28 @@ class SQLiteBackendStorage(BackendStorage):
             now = ts or datetime.utcnow().isoformat()
             
             # Ensure host exists; if not, create minimal record
-        cursor.execute(
-            "SELECT host_id, host_name, first_seen_ts, meta_json FROM hosts WHERE host_id = ?",
-            (host_id,),
-        )
-        row = cursor.fetchone()
-        if row:
-            first_seen_ts = row["first_seen_ts"]
-            host_name = row["host_name"]
-            meta_json = row["meta_json"]
-        else:
-            first_seen_ts = now
-            host_name = None
-            meta_json = None
+            cursor.execute(
+                "SELECT host_id, host_name, first_seen_ts, meta_json FROM hosts WHERE host_id = ?",
+                (host_id,),
+            )
+            row = cursor.fetchone()
+            if row:
+                first_seen_ts = row["first_seen_ts"]
+                host_name = row["host_name"]
+                meta_json = row["meta_json"]
+            else:
+                first_seen_ts = now
+                host_name = None
+                meta_json = None
 
-        cursor.execute(
-            """
-            INSERT OR REPLACE INTO hosts
-            (host_id, host_name, first_seen_ts, last_seen_ts, meta_json)
-            VALUES (?, ?, ?, ?, ?)
-            """,
-            (host_id, host_name, first_seen_ts, now, meta_json),
-        )
+            cursor.execute(
+                """
+                INSERT OR REPLACE INTO hosts
+                (host_id, host_name, first_seen_ts, last_seen_ts, meta_json)
+                VALUES (?, ?, ?, ?, ?)
+                """,
+                (host_id, host_name, first_seen_ts, now, meta_json),
+            )
             conn.commit()
         except Exception:
             conn.rollback()
