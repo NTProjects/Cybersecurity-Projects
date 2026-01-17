@@ -1,0 +1,461 @@
+{
+  "phase_status": {
+    "10": "FAIL",
+    "11": "FAIL",
+    "12": "PASS",
+    "13": "PASS",
+    "14": "PARTIAL",
+    "15": "PARTIAL",
+    "16": "PARTIAL",
+    "17": "PARTIAL",
+    "18": "PARTIAL"
+  },
+  "detailed_results": {
+    "10": {
+      "10.1": {
+        "A": "PASS",
+        "B": "PASS",
+        "C": "PASS"
+      },
+      "10.2": {
+        "A": "PASS",
+        "B": "PASS",
+        "C": "PASS",
+        "D": "PASS"
+      },
+      "10.3": {
+        "A": "PASS",
+        "B": "FAIL",
+        "C": "PASS"
+      },
+      "10.4": {
+        "A": "PASS",
+        "B": "PASS",
+        "C": "PASS"
+      }
+    },
+    "11": {
+      "1": {
+        "A": "PASS",
+        "B": "PASS",
+        "C": "PARTIAL",
+        "D": "FAIL"
+      },
+      "2": {
+        "A": "PARTIAL",
+        "B": "PARTIAL",
+        "C": "PASS"
+      }
+    },
+    "12": {
+      "1": {
+        "A": "PASS",
+        "B": "PASS",
+        "C": "PASS"
+      },
+      "2": {
+        "A": "PASS",
+        "B": "PASS",
+        "C": "PASS"
+      }
+    },
+    "13": {
+      "1": {
+        "A": "PASS",
+        "B": "PASS",
+        "C": "PASS"
+      },
+      "2": {
+        "A": "PASS",
+        "B": "PASS"
+      },
+      "3": {
+        "A": "PASS",
+        "B": "PASS",
+        "C": "PASS"
+      }
+    },
+    "14": {
+      "1": {
+        "status": "PARTIAL",
+        "note": "Requires detailed runtime verification"
+      },
+      "2": {
+        "status": "PARTIAL",
+        "note": "Requires detailed runtime verification"
+      }
+    },
+    "15": {
+      "1": {
+        "status": "PARTIAL",
+        "note": "Requires detailed runtime verification"
+      },
+      "2": {
+        "status": "PARTIAL",
+        "note": "Requires detailed runtime verification"
+      }
+    },
+    "16": {
+      "1": {
+        "status": "PARTIAL",
+        "note": "Requires detailed runtime verification"
+      },
+      "2": {
+        "status": "PARTIAL",
+        "note": "Requires detailed runtime verification"
+      }
+    },
+    "17": {
+      "1": {
+        "status": "PARTIAL",
+        "note": "Requires detailed runtime verification"
+      },
+      "2": {
+        "status": "PARTIAL",
+        "note": "Requires detailed runtime verification"
+      }
+    },
+    "18": {
+      "1": {
+        "status": "PARTIAL",
+        "note": "Requires detailed runtime verification"
+      },
+      "2": {
+        "status": "PARTIAL",
+        "note": "Requires detailed runtime verification"
+      },
+      "3": {
+        "status": "PARTIAL",
+        "note": "Requires detailed runtime verification"
+      }
+    }
+  },
+  "evidence": {
+    "10": {
+      "10.1.A": {
+        "endpoints_checked": [
+          "alerts.list_alerts",
+          "alerts.get_alert",
+          "alerts.ack_alert",
+          "alerts.suppress_alert",
+          "incidents.list_incidents",
+          "incidents.get_incident",
+          "incidents.close_incident",
+          "incidents.add_incident_note",
+          "incidents.get_incident_metrics"
+        ],
+        "all_have_rbac": true
+      },
+      "10.1.B": {
+        "deny_rules": {
+          "agent": [
+            "read_alerts",
+            "read_incidents",
+            "read_hosts",
+            "ack_alerts",
+            "suppress_alerts",
+            "close_incidents",
+            "view_reports"
+          ],
+          "analyst": [
+            "suppress_alerts",
+            "close_incidents"
+          ]
+        },
+        "analyst_denied_operations": [
+          "suppress_alerts",
+          "close_incidents"
+        ]
+      },
+      "10.1.C": {
+        "matrix_exists": true,
+        "roles_defined": [
+          "agent",
+          "analyst",
+          "admin"
+        ]
+      },
+      "10.2.A": {
+        "actions_tested": [
+          "alert_ingest",
+          "incident_create",
+          "host_registration",
+          "report_generation",
+          "admin_action"
+        ],
+        "all_logged": true
+      },
+      "10.2.B": {
+        "example_entry": {
+          "id": 6,
+          "timestamp": "2026-01-17T04:34:23.895021",
+          "user_id": "test_user_123",
+          "role": "analyst",
+          "operation": "test_operation",
+          "endpoint": "/api/v1/test",
+          "object_type": "test",
+          "object_id": "test_123",
+          "action": "read",
+          "result": "success",
+          "details": null,
+          "previous_hash": "1313218cce1282eed3f2843fdad61ae17aac07a844f225637941a7260ce0c142",
+          "entry_hash": "b5a7dae3a9d3037a2c192c33c662965c73c55956c99c65109be9dbb37c0bd698"
+        },
+        "has_all_fields": true
+      },
+      "10.2.C": {
+        "no_write_endpoints": true,
+        "no_delete_endpoints": true
+      },
+      "10.2.D": {
+        "chain_valid": true,
+        "errors": []
+      },
+      "10.3.A": {
+        "concurrent_reads": 5,
+        "errors": []
+      },
+      "10.3.B": {
+        "methods_without_rollback": [
+          "save_alert",
+          "update_incident_status"
+        ],
+        "methods_with_rollback": [
+          "save_incident",
+          "update_alert_ack"
+        ]
+      },
+      "10.3.C": {
+        "stateless_api": true,
+        "auth_per_request": true
+      },
+      "10.4.A": {
+        "log_format": "JSON",
+        "example": {
+          "timestamp": "2026-01-17T04:34:24.819882",
+          "level": "INFO",
+          "logger": "test",
+          "message": "Test message",
+          "correlation_id": "f2aca585",
+          "module": "verify_phase10",
+          "function": "test_10_4_observability",
+          "line": 516,
+          "test_key": "test_value"
+        }
+      },
+      "10.4.B": {
+        "correlation_id_generated": true,
+        "correlation_id_set": true,
+        "middleware_exists": true
+      },
+      "10.4.C": {
+        "has_severity": true,
+        "has_context": true,
+        "has_exception": true,
+        "example": {
+          "timestamp": "2026-01-17T04:34:24.819882",
+          "level": "ERROR",
+          "logger": "test_error",
+          "message": "Error occurred",
+          "correlation_id": "test_corr_123",
+          "module": "verify_phase10",
+          "function": "test_10_4_observability",
+          "line": 590,
+          "exception": "Traceback (most recent call last):\n  File \"D:\\Cybersecurity-Projects\\verify_phase10.py\", line 588, in test_10_4_observability\n    raise ValueError(\"Test error for verification\")\nValueError: Test error for verification",
+          "test_context": "value"
+        }
+      }
+    },
+    "11.1.A": {
+      "no_polling_loops": true
+    },
+    "11.1.B": {
+      "broadcast_method_exists": true
+    },
+    "11.1.C": {
+      "methods_exist": true,
+      "tracking_missing": true
+    },
+    "11.1.D": {
+      "error": "Rate limiting not found"
+    },
+    "11.2.A": {
+      "has_polling": true,
+      "has_manual_refresh": true
+    },
+    "11.2.B": {
+      "after_calls": 5,
+      "note": "after() may be used for UI updates only"
+    },
+    "11.2.C": {
+      "exception_handling": true
+    },
+    "12.1.A": {
+      "technique_mapping": true,
+      "chains_created": 2
+    },
+    "12.1.B": {
+      "multi_technique": true,
+      "total_chains": 3
+    },
+    "12.1.C": {
+      "kill_chain": true,
+      "progression": {
+        "chain_id": "chain_1",
+        "progression": {
+          "Reconnaissance": {
+            "position": 0,
+            "observed": false,
+            "techniques": [
+              "T1059"
+            ]
+          },
+          "Resource Development": {
+            "position": 1,
+            "observed": false,
+            "techniques": [
+              "T1059"
+            ]
+          },
+          "Initial Access": {
+            "position": 2,
+            "observed": false,
+            "techniques": [
+              "T1059"
+            ]
+          },
+          "Execution": {
+            "position": 3,
+            "observed": false,
+            "techniques": [
+              "T1059"
+            ]
+          },
+          "Persistence": {
+            "position": 4,
+            "observed": false,
+            "techniques": [
+              "T1059"
+            ]
+          },
+          "Privilege Escalation": {
+            "position": 5,
+            "observed": false,
+            "techniques": [
+              "T1059"
+            ]
+          },
+          "Defense Evasion": {
+            "position": 6,
+            "observed": false,
+            "techniques": [
+              "T1059"
+            ]
+          },
+          "Credential Access": {
+            "position": 7,
+            "observed": false,
+            "techniques": [
+              "T1059"
+            ]
+          },
+          "Discovery": {
+            "position": 8,
+            "observed": false,
+            "techniques": [
+              "T1059"
+            ]
+          },
+          "Lateral Movement": {
+            "position": 9,
+            "observed": false,
+            "techniques": [
+              "T1059"
+            ]
+          },
+          "Collection": {
+            "position": 10,
+            "observed": false,
+            "techniques": [
+              "T1059"
+            ]
+          },
+          "Command and Control": {
+            "position": 11,
+            "observed": false,
+            "techniques": [
+              "T1059"
+            ]
+          },
+          "Exfiltration": {
+            "position": 12,
+            "observed": false,
+            "techniques": [
+              "T1059"
+            ]
+          },
+          "Impact": {
+            "position": 13,
+            "observed": false,
+            "techniques": [
+              "T1059"
+            ]
+          }
+        },
+        "observed_tactics": [],
+        "total_tactics": 14,
+        "coverage": 0.0
+      }
+    },
+    "12.2.A": {
+      "baselines_created": 1
+    },
+    "12.2.B": {
+      "deviation_detected": true,
+      "score": 0.7
+    },
+    "12.2.C": {
+      "amplification": true,
+      "base": 50,
+      "amplified": 50
+    },
+    "13.1.A": {
+      "os_commands": true,
+      "windows": true,
+      "linux": true
+    },
+    "13.1.B": {
+      "platform_handling": true
+    },
+    "13.1.C": {
+      "error_handling": true
+    },
+    "13.2.A": {
+      "parsers_exist": true
+    },
+    "13.2.B": {
+      "human_readable": true
+    },
+    "13.3.A": {
+      "detection_method": true
+    },
+    "13.3.B": {
+      "detection_method": true
+    },
+    "13.3.C": {
+      "risk_scoring": true
+    }
+  },
+  "blocking_issues": [
+    "Phase 10",
+    "Phase 11"
+  ],
+  "downgrades_required": [
+    "Phase 14",
+    "Phase 15",
+    "Phase 16",
+    "Phase 17",
+    "Phase 18"
+  ],
+  "timestamp": "2026-01-17T04:40:06.638135"
+}
