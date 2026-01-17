@@ -12,6 +12,11 @@
         ],
         "timeout_seconds": 1.0
       }
+    },
+    {
+      "name": "local_security_scanner",
+      "enabled": true,
+      "config": {}
     }
   ],
   "reporting": {
